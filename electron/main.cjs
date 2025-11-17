@@ -190,11 +190,17 @@ async function importPhoto(filePath) {
     jfif: true
   });
 
+  // Convert date to ISO string if it's a Date object
+  let dateTaken = exifData?.DateTimeOriginal || exifData?.DateTime || null;
+  if (dateTaken instanceof Date) {
+    dateTaken = dateTaken.toISOString();
+  }
+
   const photoData = {
     file_path: filePath,
     file_name: fileName,
     file_size: stats.size,
-    date_taken: exifData?.DateTimeOriginal || exifData?.DateTime || null,
+    date_taken: dateTaken,
     latitude: exifData?.latitude || null,
     longitude: exifData?.longitude || null,
     camera_make: exifData?.Make || null,
