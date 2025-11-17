@@ -2,20 +2,32 @@ const { app, BrowserWindow, ipcMain, dialog } = require('electron');
 const path = require('path');
 const fs = require('fs').promises;
 const fsSync = require('fs');
-const Database = require('better-sqlite3');
+const initSqlJs = require('sql.js');
 const exifr = require('exifr');
 const piexif = require('piexifjs');
 
 let mainWindow;
 let db;
+let dbPath;
 
 // Initialize database
-function initDatabase() {
-  const dbPath = path.join(app.getPath('userData'), 'memorable.db');
-  db = new Database(dbPath);
+async function initDatabase() {
+  dbPath = path.join(app.getPath('userData'), 'memorable.db');
+  const SQL = await initSqlJs();
+
+  // Load existing database or create new one
+  let buffer;
+  try {
+    buffer = fsSync.readFileSync(dbPath);
+  } catch (e) {
+    // Database doesn't exist yet
+    buffer = null;
+  }
+
+  db = new SQL.Database(buffer);
 
   // Create tables
-  db.exec(`
+  db.run(`
     CREATE TABLE IF NOT EXISTS photos (
       id INTEGER PRIMARY KEY AUTOINCREMENT,
       file_path TEXT UNIQUE NOT NULL,
@@ -66,6 +78,36 @@ function initDatabase() {
     CREATE INDEX IF NOT EXISTS idx_photos_location ON photos(latitude, longitude);
     CREATE INDEX IF NOT EXISTS idx_photos_date ON photos(date_taken);
   `);
+
+  saveDatabase();
+}
+
+// Helper function to save database to file
+function saveDatabase() {
+  if (db && dbPath) {
+    const data = db.export();
+    fsSync.writeFileSync(dbPath, data);
+  }
+}
+
+// Helper function to convert sql.js results to objects
+function sqlResultToObjects(result) {
+  if (!result || result.length === 0) return [];
+  const columns = result[0].columns;
+  const values = result[0].values;
+  return values.map(row => {
+    const obj = {};
+    columns.forEach((col, i) => {
+      obj[col] = row[i];
+    });
+    return obj;
+  });
+}
+
+// Helper function to get a single row
+function sqlResultToObject(result) {
+  const objects = sqlResultToObjects(result);
+  return objects.length > 0 ? objects[0] : null;
 }
 
 function createWindow() {
@@ -88,8 +130,8 @@ function createWindow() {
   }
 }
 
-app.whenReady().then(() => {
-  initDatabase();
+app.whenReady().then(async () => {
+  await initDatabase();
   createWindow();
 
   app.on('activate', () => {
@@ -101,7 +143,10 @@ app.whenReady().then(() => {
 
 app.on('window-all-closed', () => {
   if (process.platform !== 'darwin') {
-    if (db) db.close();
+    if (db) {
+      saveDatabase();
+      db.close();
+    }
     app.quit();
   }
 });
@@ -165,15 +210,13 @@ async function importPhoto(filePath) {
   };
 
   // Insert into database
-  const stmt = db.prepare(`
+  db.run(`
     INSERT OR REPLACE INTO photos (
       file_path, file_name, file_size, date_taken, latitude, longitude,
       camera_make, camera_model, lens_model, focal_length, aperture,
       shutter_speed, iso, width, height, orientation
     ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-  `);
-
-  const info = stmt.run(
+  `, [
     photoData.file_path,
     photoData.file_name,
     photoData.file_size,
@@ -190,21 +233,26 @@ async function importPhoto(filePath) {
     photoData.width,
     photoData.height,
     photoData.orientation
-  );
+  ]);
 
-  return { id: info.lastInsertRowid, ...photoData };
+  // Get the last inserted ID
+  const result = db.exec('SELECT last_insert_rowid() as id');
+  const id = result[0].values[0][0];
+
+  saveDatabase();
+  return { id, ...photoData };
 }
 
 // Get all photos
 ipcMain.handle('get-photos', () => {
-  const stmt = db.prepare('SELECT * FROM photos ORDER BY date_taken DESC, import_date DESC');
-  return stmt.all();
+  const result = db.exec('SELECT * FROM photos ORDER BY date_taken DESC, import_date DESC');
+  return sqlResultToObjects(result);
 });
 
 // Get photo by ID
 ipcMain.handle('get-photo', (event, id) => {
-  const stmt = db.prepare('SELECT * FROM photos WHERE id = ?');
-  return stmt.get(id);
+  const result = db.exec('SELECT * FROM photos WHERE id = ?', [id]);
+  return sqlResultToObject(result);
 });
 
 // Update photo metadata
@@ -221,92 +269,92 @@ ipcMain.handle('update-photo', (event, id, updates) => {
   const setClause = fields.map(field => `${field} = ?`).join(', ');
   const values = fields.map(field => updates[field]);
 
-  const stmt = db.prepare(`UPDATE photos SET ${setClause} WHERE id = ?`);
-  stmt.run(...values, id);
+  db.run(`UPDATE photos SET ${setClause} WHERE id = ?`, [...values, id]);
+  saveDatabase();
 
   return true;
 });
 
 // Delete photo
 ipcMain.handle('delete-photo', (event, id) => {
-  const stmt = db.prepare('DELETE FROM photos WHERE id = ?');
-  stmt.run(id);
+  db.run('DELETE FROM photos WHERE id = ?', [id]);
+  saveDatabase();
   return true;
 });
 
 // Collections
 ipcMain.handle('create-collection', (event, name, description) => {
-  const stmt = db.prepare('INSERT INTO collections (name, description) VALUES (?, ?)');
-  const info = stmt.run(name, description);
-  return { id: info.lastInsertRowid, name, description };
+  db.run('INSERT INTO collections (name, description) VALUES (?, ?)', [name, description]);
+  const result = db.exec('SELECT last_insert_rowid() as id');
+  const id = result[0].values[0][0];
+  saveDatabase();
+  return { id, name, description };
 });
 
 ipcMain.handle('get-collections', () => {
-  const stmt = db.prepare('SELECT * FROM collections ORDER BY name');
-  return stmt.all();
+  const result = db.exec('SELECT * FROM collections ORDER BY name');
+  return sqlResultToObjects(result);
 });
 
 ipcMain.handle('update-collection', (event, id, name, description) => {
-  const stmt = db.prepare('UPDATE collections SET name = ?, description = ? WHERE id = ?');
-  stmt.run(name, description, id);
+  db.run('UPDATE collections SET name = ?, description = ? WHERE id = ?', [name, description, id]);
+  saveDatabase();
   return true;
 });
 
 ipcMain.handle('delete-collection', (event, id) => {
-  const stmt = db.prepare('DELETE FROM collections WHERE id = ?');
-  stmt.run(id);
+  db.run('DELETE FROM collections WHERE id = ?', [id]);
+  saveDatabase();
   return true;
 });
 
 // Add photo to collection
 ipcMain.handle('add-photo-to-collection', (event, photoId, collectionId) => {
-  const stmt = db.prepare('INSERT OR IGNORE INTO photo_collections (photo_id, collection_id) VALUES (?, ?)');
-  stmt.run(photoId, collectionId);
+  db.run('INSERT OR IGNORE INTO photo_collections (photo_id, collection_id) VALUES (?, ?)', [photoId, collectionId]);
+  saveDatabase();
   return true;
 });
 
 // Remove photo from collection
 ipcMain.handle('remove-photo-from-collection', (event, photoId, collectionId) => {
-  const stmt = db.prepare('DELETE FROM photo_collections WHERE photo_id = ? AND collection_id = ?');
-  stmt.run(photoId, collectionId);
+  db.run('DELETE FROM photo_collections WHERE photo_id = ? AND collection_id = ?', [photoId, collectionId]);
+  saveDatabase();
   return true;
 });
 
 // Get photos in collection
 ipcMain.handle('get-collection-photos', (event, collectionId) => {
-  const stmt = db.prepare(`
+  const result = db.exec(`
     SELECT p.* FROM photos p
     JOIN photo_collections pc ON p.id = pc.photo_id
     WHERE pc.collection_id = ?
     ORDER BY pc.added_date DESC
-  `);
-  return stmt.all(collectionId);
+  `, [collectionId]);
+  return sqlResultToObjects(result);
 });
 
 // Get collections for a photo
 ipcMain.handle('get-photo-collections', (event, photoId) => {
-  const stmt = db.prepare(`
+  const result = db.exec(`
     SELECT c.* FROM collections c
     JOIN photo_collections pc ON c.id = pc.collection_id
     WHERE pc.photo_id = ?
-  `);
-  return stmt.all(photoId);
+  `, [photoId]);
+  return sqlResultToObjects(result);
 });
 
 // Custom metadata
 ipcMain.handle('set-custom-metadata', (event, photoId, key, value) => {
-  const stmt = db.prepare(`
-    INSERT INTO custom_metadata (photo_id, key, value)
-    VALUES (?, ?, ?)
-    ON CONFLICT (rowid) DO UPDATE SET value = ?
-  `);
-  stmt.run(photoId, key, value, value);
+  // First try to delete existing, then insert (since ON CONFLICT syntax varies)
+  db.run('DELETE FROM custom_metadata WHERE photo_id = ? AND key = ?', [photoId, key]);
+  db.run('INSERT INTO custom_metadata (photo_id, key, value) VALUES (?, ?, ?)', [photoId, key, value]);
+  saveDatabase();
   return true;
 });
 
 ipcMain.handle('get-custom-metadata', (event, photoId) => {
-  const stmt = db.prepare('SELECT key, value FROM custom_metadata WHERE photo_id = ?');
-  return stmt.all(photoId);
+  const result = db.exec('SELECT key, value FROM custom_metadata WHERE photo_id = ?', [photoId]);
+  return sqlResultToObjects(result);
 });
 
 // Read file as base64 for display
@@ -324,8 +372,8 @@ ipcMain.handle('read-photo-file', async (event, filePath) => {
 ipcMain.handle('write-metadata-to-exif', async (event, photoId) => {
   try {
     // Get photo from database
-    const stmt = db.prepare('SELECT * FROM photos WHERE id = ?');
-    const photo = stmt.get(photoId);
+    const result = db.exec('SELECT * FROM photos WHERE id = ?', [photoId]);
+    const photo = sqlResultToObject(result);
 
     if (!photo || !photo.file_path) {
       throw new Error('Photo not found');
