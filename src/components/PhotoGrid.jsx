@@ -8,6 +8,9 @@ function PhotoGrid({ photos, onPhotoClick, selectedCollection, collections, onRe
   const [selectionMode, setSelectionMode] = useState(false);
   const [selectedIds, setSelectedIds] = useState(new Set());
   const [showCollectionPicker, setShowCollectionPicker] = useState(false);
+  const [showLocationModal, setShowLocationModal] = useState(false);
+  const [locationInput, setLocationInput] = useState({ latitude: '', longitude: '', location_name: '' });
+  const [locationLoading, setLocationLoading] = useState(false);
   const scrollContainerRef = useRef(null);
   const dateRefs = useRef({});
 
@@ -245,6 +248,109 @@ function PhotoGrid({ photos, onPhotoClick, selectedCollection, collections, onRe
     }
   };
 
+  // Location modal handlers
+  const openLocationModal = () => {
+    setLocationInput({ latitude: '', longitude: '', location_name: '' });
+    setShowLocationModal(true);
+  };
+
+  const handleOpenGoogleMaps = () => {
+    // Open Google Maps in browser for searching
+    window.open('https://www.google.com/maps', '_blank');
+  };
+
+  const handlePasteCoordinates = async () => {
+    try {
+      const text = await navigator.clipboard.readText();
+      // Try to parse coordinates from various formats
+      // Format 1: "48.8584, 2.2945" or "48.8584,2.2945"
+      // Format 2: "48.8584° N, 2.2945° E"
+      // Format 3: Google Maps URL with @lat,lng
+
+      let lat, lng;
+
+      // Try Google Maps URL format
+      const urlMatch = text.match(/@(-?\d+\.?\d*),(-?\d+\.?\d*)/);
+      if (urlMatch) {
+        lat = urlMatch[1];
+        lng = urlMatch[2];
+      } else {
+        // Try simple comma-separated format
+        const simpleMatch = text.match(/(-?\d+\.?\d*)\s*,\s*(-?\d+\.?\d*)/);
+        if (simpleMatch) {
+          lat = simpleMatch[1];
+          lng = simpleMatch[2];
+        }
+      }
+
+      if (lat && lng) {
+        setLocationInput(prev => ({
+          ...prev,
+          latitude: lat,
+          longitude: lng
+        }));
+      } else {
+        alert('Could not parse coordinates from clipboard. Please enter them manually.');
+      }
+    } catch (error) {
+      console.error('Failed to read clipboard:', error);
+      alert('Could not access clipboard. Please paste coordinates manually.');
+    }
+  };
+
+  const handleLookupLocationName = async () => {
+    if (!locationInput.latitude || !locationInput.longitude) {
+      alert('Please enter coordinates first');
+      return;
+    }
+
+    setLocationLoading(true);
+    try {
+      const result = await window.electron.reverseGeocode(
+        parseFloat(locationInput.latitude),
+        parseFloat(locationInput.longitude)
+      );
+      if (result.success) {
+        setLocationInput(prev => ({
+          ...prev,
+          location_name: result.address
+        }));
+      }
+    } catch (error) {
+      console.error('Reverse geocode error:', error);
+    } finally {
+      setLocationLoading(false);
+    }
+  };
+
+  const handleApplyLocation = async () => {
+    if (selectedIds.size === 0) return;
+
+    const lat = locationInput.latitude ? parseFloat(locationInput.latitude) : null;
+    const lng = locationInput.longitude ? parseFloat(locationInput.longitude) : null;
+
+    if (!lat || !lng) {
+      alert('Please enter valid latitude and longitude');
+      return;
+    }
+
+    try {
+      await window.electron.updatePhotosLocation(Array.from(selectedIds), {
+        latitude: lat,
+        longitude: lng,
+        location_name: locationInput.location_name || null
+      });
+
+      setShowLocationModal(false);
+      setSelectedIds(new Set());
+      setSelectionMode(false);
+      if (onRefresh) onRefresh();
+    } catch (error) {
+      console.error('Error updating location:', error);
+      alert('Failed to update location');
+    }
+  };
+
   if (displayPhotos.length === 0) {
     return (
       <div className="empty-state">
@@ -271,6 +377,13 @@ function PhotoGrid({ photos, onPhotoClick, selectedCollection, collections, onRe
               <button className="secondary small" onClick={deselectAll}>Deselect All</button>
             </div>
             <div className="selection-actions">
+              <button
+                className="secondary"
+                onClick={openLocationModal}
+                disabled={selectedIds.size === 0}
+              >
+                Set Location
+              </button>
               <div className="collection-picker-wrapper">
                 <button
                   className="secondary"
@@ -411,6 +524,101 @@ function PhotoGrid({ photos, onPhotoClick, selectedCollection, collections, onRe
           )
         ))}
       </div>
+
+      {/* Set Location Modal */}
+      {showLocationModal && (
+        <div className="location-modal-overlay" onClick={() => setShowLocationModal(false)}>
+          <div className="location-modal" onClick={(e) => e.stopPropagation()}>
+            <div className="location-modal-header">
+              <h3>Set Location for {selectedIds.size} Photo{selectedIds.size > 1 ? 's' : ''}</h3>
+              <button className="secondary small" onClick={() => setShowLocationModal(false)}>Close</button>
+            </div>
+
+            <div className="location-modal-content">
+              {/* Instructions */}
+              <div className="location-modal-section">
+                <div className="location-modal-instructions">
+                  <p><strong>How to get coordinates from Google Maps:</strong></p>
+                  <ol>
+                    <li>Click "Open Google Maps" below</li>
+                    <li>Search for your location</li>
+                    <li>Right-click on the exact spot and click the coordinates to copy them</li>
+                    <li>Come back here and click "Paste Coordinates"</li>
+                  </ol>
+                </div>
+                <button className="secondary" onClick={handleOpenGoogleMaps}>
+                  Open Google Maps
+                </button>
+              </div>
+
+              {/* Coordinates Input */}
+              <div className="location-modal-section">
+                <div className="location-modal-label">Coordinates</div>
+                <div className="coordinates-input-row">
+                  <div className="coordinate-input">
+                    <label>Latitude</label>
+                    <input
+                      type="number"
+                      step="any"
+                      placeholder="e.g., 48.8584"
+                      value={locationInput.latitude}
+                      onChange={(e) => setLocationInput(prev => ({ ...prev, latitude: e.target.value }))}
+                    />
+                  </div>
+                  <div className="coordinate-input">
+                    <label>Longitude</label>
+                    <input
+                      type="number"
+                      step="any"
+                      placeholder="e.g., 2.2945"
+                      value={locationInput.longitude}
+                      onChange={(e) => setLocationInput(prev => ({ ...prev, longitude: e.target.value }))}
+                    />
+                  </div>
+                </div>
+                <div className="coordinates-actions">
+                  <button className="secondary small" onClick={handlePasteCoordinates}>
+                    Paste Coordinates
+                  </button>
+                  <button
+                    className="secondary small"
+                    onClick={handleLookupLocationName}
+                    disabled={!locationInput.latitude || !locationInput.longitude || locationLoading}
+                  >
+                    {locationLoading ? 'Looking up...' : 'Lookup Address'}
+                  </button>
+                </div>
+              </div>
+
+              {/* Location Name Input */}
+              <div className="location-modal-section">
+                <div className="location-modal-label">Location Name (optional)</div>
+                <input
+                  type="text"
+                  placeholder="e.g., Eiffel Tower, Paris"
+                  value={locationInput.location_name}
+                  onChange={(e) => setLocationInput(prev => ({ ...prev, location_name: e.target.value }))}
+                />
+                <div className="location-hint">
+                  This will be saved as the location name for all selected photos.
+                </div>
+              </div>
+            </div>
+
+            <div className="location-modal-footer">
+              <button className="secondary" onClick={() => setShowLocationModal(false)}>
+                Cancel
+              </button>
+              <button
+                onClick={handleApplyLocation}
+                disabled={!locationInput.latitude || !locationInput.longitude}
+              >
+                Apply to {selectedIds.size} Photo{selectedIds.size > 1 ? 's' : ''}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

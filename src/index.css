@@ -607,6 +607,132 @@ button.small {
   flex: 1;
 }
 
+/* Set Location Modal */
+.location-modal-overlay {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: rgba(0, 0, 0, 0.5);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 2000;
+}
+
+.location-modal {
+  background: white;
+  border-radius: 0.5rem;
+  width: 550px;
+  max-width: 95vw;
+  max-height: 90vh;
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+  box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.2);
+}
+
+.location-modal-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 1rem 1.5rem;
+  border-bottom: 1px solid var(--border);
+}
+
+.location-modal-header h3 {
+  font-size: 1.125rem;
+  font-weight: 600;
+  margin: 0;
+}
+
+.location-modal-content {
+  flex: 1;
+  overflow-y: auto;
+}
+
+.location-modal-section {
+  padding: 1rem 1.5rem;
+  border-bottom: 1px solid var(--border);
+}
+
+.location-modal-section:last-child {
+  border-bottom: none;
+}
+
+.location-modal-label {
+  font-size: 0.75rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  color: var(--text-light);
+  margin-bottom: 0.5rem;
+}
+
+.location-modal-instructions {
+  background: var(--bg-light);
+  padding: 1rem;
+  border-radius: 0.375rem;
+  margin-bottom: 1rem;
+}
+
+.location-modal-instructions p {
+  margin: 0 0 0.5rem 0;
+  font-size: 0.875rem;
+}
+
+.location-modal-instructions ol {
+  margin: 0;
+  padding-left: 1.25rem;
+  font-size: 0.8125rem;
+  color: var(--text-light);
+}
+
+.location-modal-instructions li {
+  margin-bottom: 0.25rem;
+}
+
+.coordinates-input-row {
+  display: flex;
+  gap: 1rem;
+  margin-bottom: 0.75rem;
+}
+
+.coordinate-input {
+  flex: 1;
+}
+
+.coordinate-input label {
+  display: block;
+  font-size: 0.75rem;
+  color: var(--text-light);
+  margin-bottom: 0.25rem;
+}
+
+.coordinate-input input {
+  width: 100%;
+}
+
+.coordinates-actions {
+  display: flex;
+  gap: 0.5rem;
+}
+
+.location-hint {
+  font-size: 0.75rem;
+  color: var(--text-light);
+  margin-top: 0.5rem;
+}
+
+.location-modal-footer {
+  display: flex;
+  justify-content: flex-end;
+  gap: 0.5rem;
+  padding: 1rem 1.5rem;
+  border-top: 1px solid var(--border);
+  background: var(--bg-light);
+}
+
 .photo-card-info {
   padding: 0.75rem;
 }

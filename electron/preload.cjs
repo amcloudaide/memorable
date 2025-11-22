@@ -10,6 +10,7 @@ contextBridge.exposeInMainWorld('electron', {
   updatePhoto: (id, updates) => ipcRenderer.invoke('update-photo', id, updates),
   deletePhoto: (id) => ipcRenderer.invoke('delete-photo', id),
   deletePhotos: (ids) => ipcRenderer.invoke('delete-photos', ids),
+  updatePhotosLocation: (ids, locationData) => ipcRenderer.invoke('update-photos-location', ids, locationData),
   readPhotoFile: (filePath) => ipcRenderer.invoke('read-photo-file', filePath),
 
   // Collection operations

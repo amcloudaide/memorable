@@ -332,6 +332,19 @@ ipcMain.handle('delete-photos', (event, ids) => {
   return true;
 });
 
+// Bulk update photos location
+ipcMain.handle('update-photos-location', (event, ids, locationData) => {
+  if (!Array.isArray(ids) || ids.length === 0) return false;
+
+  const { latitude, longitude, location_name } = locationData;
+  const placeholders = ids.map(() => '?').join(',');
+
+  db.run(`UPDATE photos SET latitude = ?, longitude = ?, location_name = ? WHERE id IN (${placeholders})`,
+    [latitude, longitude, location_name, ...ids]);
+  saveDatabase();
+  return true;
+});
+
 // Collections
 ipcMain.handle('create-collection', (event, name, description) => {
   db.run('INSERT INTO collections (name, description) VALUES (?, ?)', [name, description]);
