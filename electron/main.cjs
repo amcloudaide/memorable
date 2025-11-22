@@ -668,3 +668,266 @@ ipcMain.handle('open-in-maps', async (event, latitude, longitude) => {
   await shell.openExternal(url);
   return true;
 });
+
+// ==================== WordPress Integration ====================
+
+// Store for WordPress settings
+let wpSettings = null;
+const wpSettingsPath = () => path.join(app.getPath('userData'), 'wp-settings.json');
+
+// Load WordPress settings
+function loadWpSettings() {
+  try {
+    const data = fsSync.readFileSync(wpSettingsPath(), 'utf8');
+    wpSettings = JSON.parse(data);
+  } catch (e) {
+    wpSettings = null;
+  }
+  return wpSettings;
+}
+
+// Save WordPress settings
+ipcMain.handle('wp-save-settings', async (event, settings) => {
+  try {
+    wpSettings = settings;
+    fsSync.writeFileSync(wpSettingsPath(), JSON.stringify(settings, null, 2));
+    return { success: true };
+  } catch (error) {
+    return { success: false, error: error.message };
+  }
+});
+
+// Get WordPress settings
+ipcMain.handle('wp-get-settings', async () => {
+  if (!wpSettings) loadWpSettings();
+  return wpSettings || { url: '', username: '', appPassword: '' };
+});
+
+// Helper function for WordPress API requests
+async function wpApiRequest(endpoint, method = 'GET', body = null, isFormData = false) {
+  if (!wpSettings) loadWpSettings();
+  if (!wpSettings || !wpSettings.url || !wpSettings.username || !wpSettings.appPassword) {
+    throw new Error('WordPress settings not configured');
+  }
+
+  const url = `${wpSettings.url.replace(/\/$/, '')}/wp-json/wp/v2${endpoint}`;
+  const auth = Buffer.from(`${wpSettings.username}:${wpSettings.appPassword}`).toString('base64');
+
+  return new Promise((resolve, reject) => {
+    const request = net.request({
+      method,
+      url,
+    });
+
+    request.setHeader('Authorization', `Basic ${auth}`);
+
+    if (body && !isFormData) {
+      request.setHeader('Content-Type', 'application/json');
+    }
+
+    let responseData = Buffer.alloc(0);
+
+    request.on('response', (response) => {
+      response.on('data', (chunk) => {
+        responseData = Buffer.concat([responseData, chunk]);
+      });
+      response.on('end', () => {
+        try {
+          const jsonData = JSON.parse(responseData.toString());
+          if (response.statusCode >= 200 && response.statusCode < 300) {
+            resolve(jsonData);
+          } else {
+            reject(new Error(jsonData.message || `HTTP ${response.statusCode}`));
+          }
+        } catch (e) {
+          if (response.statusCode >= 200 && response.statusCode < 300) {
+            resolve(responseData.toString());
+          } else {
+            reject(new Error(`HTTP ${response.statusCode}: ${responseData.toString()}`));
+          }
+        }
+      });
+    });
+
+    request.on('error', (error) => {
+      reject(error);
+    });
+
+    if (body && !isFormData) {
+      request.write(JSON.stringify(body));
+    } else if (body && isFormData) {
+      request.write(body);
+    }
+
+    request.end();
+  });
+}
+
+// Test WordPress connection
+ipcMain.handle('wp-test-connection', async () => {
+  try {
+    const result = await wpApiRequest('/users/me');
+    return { success: true, user: result.name };
+  } catch (error) {
+    return { success: false, error: error.message };
+  }
+});
+
+// Get WordPress categories
+ipcMain.handle('wp-get-categories', async () => {
+  try {
+    const categories = await wpApiRequest('/categories?per_page=100');
+    return { success: true, categories };
+  } catch (error) {
+    return { success: false, error: error.message };
+  }
+});
+
+// Get WordPress tags
+ipcMain.handle('wp-get-tags', async () => {
+  try {
+    const tags = await wpApiRequest('/tags?per_page=100');
+    return { success: true, tags };
+  } catch (error) {
+    return { success: false, error: error.message };
+  }
+});
+
+// Create or get tag by name
+ipcMain.handle('wp-create-tag', async (event, name) => {
+  try {
+    const tag = await wpApiRequest('/tags', 'POST', { name });
+    return { success: true, tag };
+  } catch (error) {
+    // Tag might already exist, try to find it
+    if (error.message.includes('term_exists')) {
+      const tags = await wpApiRequest(`/tags?search=${encodeURIComponent(name)}`);
+      const existing = tags.find(t => t.name.toLowerCase() === name.toLowerCase());
+      if (existing) return { success: true, tag: existing };
+    }
+    return { success: false, error: error.message };
+  }
+});
+
+// Upload media to WordPress
+ipcMain.handle('wp-upload-media', async (event, filePath, description = '') => {
+  try {
+    if (!wpSettings) loadWpSettings();
+    if (!wpSettings) throw new Error('WordPress settings not configured');
+
+    const fileName = path.basename(filePath);
+    const fileData = fsSync.readFileSync(filePath);
+    const mimeType = fileName.toLowerCase().endsWith('.png') ? 'image/png' : 'image/jpeg';
+
+    const url = `${wpSettings.url.replace(/\/$/, '')}/wp-json/wp/v2/media`;
+    const auth = Buffer.from(`${wpSettings.username}:${wpSettings.appPassword}`).toString('base64');
+
+    return new Promise((resolve, reject) => {
+      const request = net.request({
+        method: 'POST',
+        url,
+      });
+
+      request.setHeader('Authorization', `Basic ${auth}`);
+      request.setHeader('Content-Type', mimeType);
+      request.setHeader('Content-Disposition', `attachment; filename="${fileName}"`);
+
+      let responseData = Buffer.alloc(0);
+
+      request.on('response', (response) => {
+        response.on('data', (chunk) => {
+          responseData = Buffer.concat([responseData, chunk]);
+        });
+        response.on('end', async () => {
+          try {
+            const media = JSON.parse(responseData.toString());
+            if (response.statusCode >= 200 && response.statusCode < 300) {
+              // Update media with description if provided
+              if (description) {
+                try {
+                  await wpApiRequest(`/media/${media.id}`, 'POST', {
+                    description: description,
+                    caption: description,
+                    alt_text: description
+                  });
+                } catch (e) {
+                  console.error('Failed to update media description:', e);
+                }
+              }
+              resolve({ success: true, media });
+            } else {
+              reject(new Error(media.message || `HTTP ${response.statusCode}`));
+            }
+          } catch (e) {
+            reject(new Error(`Upload failed: ${responseData.toString()}`));
+          }
+        });
+      });
+
+      request.on('error', (error) => {
+        reject(error);
+      });
+
+      request.write(fileData);
+      request.end();
+    });
+  } catch (error) {
+    return { success: false, error: error.message };
+  }
+});
+
+// Create WordPress post with gallery
+ipcMain.handle('wp-create-post', async (event, postData) => {
+  try {
+    const { title, content, categoryIds, tagIds, mediaIds, featuredImageId, status, customFields } = postData;
+
+    // Build gallery block if multiple images
+    let galleryBlock = '';
+    if (mediaIds && mediaIds.length > 0) {
+      const imageIds = mediaIds.join(',');
+      galleryBlock = `<!-- wp:gallery {"ids":[${imageIds}],"linkTo":"none"} -->
+<figure class="wp-block-gallery has-nested-images columns-default is-cropped">
+${mediaIds.map(id => `<!-- wp:image {"id":${id},"sizeSlug":"large","linkDestination":"none"} -->
+<figure class="wp-block-image size-large"><img src="" alt="" class="wp-image-${id}"/></figure>
+<!-- /wp:image -->`).join('\n')}
+</figure>
+<!-- /wp:gallery -->`;
+    }
+
+    const fullContent = content + '\n\n' + galleryBlock;
+
+    // Create the post
+    const postBody = {
+      title,
+      content: fullContent,
+      status: status || 'draft',
+      categories: categoryIds || [],
+      tags: tagIds || []
+    };
+
+    if (featuredImageId) {
+      postBody.featured_media = featuredImageId;
+    }
+
+    const post = await wpApiRequest('/posts', 'POST', postBody);
+
+    // Update custom fields using Smart Custom Fields format
+    // SCF stores fields in post meta
+    if (customFields && (customFields.lat || customFields.lon)) {
+      try {
+        // Use the WordPress meta endpoint
+        const metaBody = {};
+        if (customFields.lat) metaBody['lat'] = customFields.lat.toString();
+        if (customFields.lon) metaBody['lon'] = customFields.lon.toString();
+
+        await wpApiRequest(`/posts/${post.id}`, 'POST', { meta: metaBody });
+      } catch (e) {
+        console.error('Failed to set custom fields:', e);
+      }
+    }
+
+    return { success: true, post };
+  } catch (error) {
+    return { success: false, error: error.message };
+  }
+});

@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useRef, useMemo } from 'react';
+import WordPressPublish from './WordPressPublish';
 
 function PhotoGrid({ photos, onPhotoClick, selectedCollection, collections, onRefresh }) {
   const [photoThumbnails, setPhotoThumbnails] = useState({});
@@ -9,6 +10,7 @@ function PhotoGrid({ photos, onPhotoClick, selectedCollection, collections, onRe
   const [selectedIds, setSelectedIds] = useState(new Set());
   const [showCollectionPicker, setShowCollectionPicker] = useState(false);
   const [showLocationModal, setShowLocationModal] = useState(false);
+  const [showWordPressPublish, setShowWordPressPublish] = useState(false);
   const [locationInput, setLocationInput] = useState({ latitude: '', longitude: '', location_name: '' });
   const [locationLoading, setLocationLoading] = useState(false);
   const scrollContainerRef = useRef(null);
@@ -413,6 +415,13 @@ function PhotoGrid({ photos, onPhotoClick, selectedCollection, collections, onRe
             <div className="selection-actions">
               <button
                 className="secondary"
+                onClick={() => setShowWordPressPublish(true)}
+                disabled={selectedIds.size === 0}
+              >
+                Publish to WP
+              </button>
+              <button
+                className="secondary"
                 onClick={openLocationModal}
                 disabled={selectedIds.size === 0}
               >
@@ -558,6 +567,21 @@ function PhotoGrid({ photos, onPhotoClick, selectedCollection, collections, onRe
           )
         ))}
       </div>
+
+      {/* WordPress Publish Modal */}
+      {showWordPressPublish && (
+        <WordPressPublish
+          photos={displayPhotos
+            .filter(p => selectedIds.has(p.id))
+            .map(p => ({ ...p, thumbnail: photoThumbnails[p.id] }))}
+          onClose={() => setShowWordPressPublish(false)}
+          onSuccess={() => {
+            setShowWordPressPublish(false);
+            setSelectedIds(new Set());
+            setSelectionMode(false);
+          }}
+        />
+      )}
 
       {/* Set Location Modal */}
       {showLocationModal && (

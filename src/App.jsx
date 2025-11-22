@@ -3,6 +3,7 @@ import PhotoGrid from './components/PhotoGrid';
 import PhotoDetail from './components/PhotoDetail';
 import MapView from './components/MapView';
 import Collections from './components/Collections';
+import WordPressSettings from './components/WordPressSettings';
 
 function App() {
   const [photos, setPhotos] = useState([]);
@@ -11,6 +12,7 @@ function App() {
   const [activeTab, setActiveTab] = useState('grid'); // grid, map, collections
   const [selectedCollection, setSelectedCollection] = useState(null);
   const [loading, setLoading] = useState(true);
+  const [showWpSettings, setShowWpSettings] = useState(false);
 
   useEffect(() => {
     loadPhotos();
@@ -145,6 +147,7 @@ function App() {
       <header className="app-header">
         <h1>Memorable</h1>
         <div className="flex gap-2">
+          <button className="secondary" onClick={() => setShowWpSettings(true)}>WordPress</button>
           <button onClick={handleImportPhotos}>Import Photos</button>
         </div>
       </header>
@@ -205,6 +208,10 @@ function App() {
           onAddToCollection={handleAddToCollection}
           onRemoveFromCollection={handleRemoveFromCollection}
         />
+      )}
+
+      {showWpSettings && (
+        <WordPressSettings onClose={() => setShowWpSettings(false)} />
       )}
     </div>
   );

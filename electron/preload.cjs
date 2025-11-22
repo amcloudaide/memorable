@@ -38,5 +38,15 @@ contextBridge.exposeInMainWorld('electron', {
   openInMaps: (latitude, longitude) => ipcRenderer.invoke('open-in-maps', latitude, longitude),
 
   // Clipboard operations
-  readClipboard: () => clipboard.readText()
+  readClipboard: () => clipboard.readText(),
+
+  // WordPress operations
+  wpSaveSettings: (settings) => ipcRenderer.invoke('wp-save-settings', settings),
+  wpGetSettings: () => ipcRenderer.invoke('wp-get-settings'),
+  wpTestConnection: () => ipcRenderer.invoke('wp-test-connection'),
+  wpGetCategories: () => ipcRenderer.invoke('wp-get-categories'),
+  wpGetTags: () => ipcRenderer.invoke('wp-get-tags'),
+  wpCreateTag: (name) => ipcRenderer.invoke('wp-create-tag', name),
+  wpUploadMedia: (filePath, description) => ipcRenderer.invoke('wp-upload-media', filePath, description),
+  wpCreatePost: (postData) => ipcRenderer.invoke('wp-create-post', postData)
 });
