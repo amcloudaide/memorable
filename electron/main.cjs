@@ -899,16 +899,22 @@ ipcMain.handle('wp-upload-media', async (event, filePath, mediaInfo = {}) => {
 // Create WordPress post with gallery
 ipcMain.handle('wp-create-post', async (event, postData) => {
   try {
-    const { title, content, categoryIds, tagIds, mediaIds, featuredImageId, status, customFields } = postData;
+    const { title, content, categoryIds, tagIds, mediaItems, featuredImageId, status, customFields } = postData;
 
-    // Build classic WordPress gallery shortcode
-    let galleryShortcode = '';
-    if (mediaIds && mediaIds.length > 0) {
-      const imageIds = mediaIds.join(',');
-      galleryShortcode = `[gallery ids="${imageIds}" columns="3" link="file"]`;
+    // Build Gutenberg Image blocks (individual linked images like user's existing posts)
+    let imageBlocks = '';
+    if (mediaItems && mediaItems.length > 0) {
+      imageBlocks = mediaItems.map(media => {
+        // Use large size for display, link to full size
+        const displayUrl = media.largeUrl || media.url;
+        const linkUrl = media.fullUrl || media.url;
+        return `<!-- wp:image {"id":${media.id},"sizeSlug":"large","linkDestination":"media"} -->
+<figure class="wp-block-image size-large"><a href="${linkUrl}"><img src="${displayUrl}" alt="" class="wp-image-${media.id}"/></a></figure>
+<!-- /wp:image -->`;
+      }).join('\n\n');
     }
 
-    const fullContent = content + '\n\n' + galleryShortcode;
+    const fullContent = content + '\n\n' + imageBlocks;
 
     // Create the post
     const postBody = {

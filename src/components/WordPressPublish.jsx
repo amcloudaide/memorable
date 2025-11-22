@@ -118,7 +118,7 @@ function WordPressPublish({ photos, onClose, onSuccess }) {
     }
 
     setPublishing(true);
-    const mediaIds = [];
+    const mediaItems = []; // Store full media info (id + URLs)
 
     try {
       // Upload each photo
@@ -151,7 +151,13 @@ function WordPressPublish({ photos, onClose, onSuccess }) {
 
         const result = await window.electron.wpUploadMedia(photo.file_path, mediaInfo);
         if (result.success) {
-          mediaIds.push(result.media.id);
+          // Store full media info for Gutenberg Image blocks
+          mediaItems.push({
+            id: result.media.id,
+            url: result.media.source_url,
+            fullUrl: result.media.media_details?.sizes?.full?.source_url || result.media.source_url,
+            largeUrl: result.media.media_details?.sizes?.large?.source_url || result.media.source_url
+          });
         } else {
           throw new Error(`Failed to upload ${photo.file_name}: ${result.error}`);
         }
@@ -165,8 +171,8 @@ function WordPressPublish({ photos, onClose, onSuccess }) {
         content: formData.content,
         categoryIds: formData.selectedCategories,
         tagIds: formData.selectedTags.map(t => t.id),
-        mediaIds: mediaIds,
-        featuredImageId: mediaIds[formData.featuredImageIndex] || mediaIds[0],
+        mediaItems: mediaItems,
+        featuredImageId: mediaItems[formData.featuredImageIndex]?.id || mediaItems[0]?.id,
         status: formData.status,
         customFields: {
           lat: formData.lat || null,
