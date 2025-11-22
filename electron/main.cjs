@@ -901,20 +901,26 @@ ipcMain.handle('wp-create-post', async (event, postData) => {
   try {
     const { title, content, categoryIds, tagIds, mediaItems, featuredImageId, status, customFields } = postData;
 
-    // Build Gutenberg Image blocks (individual linked images like user's existing posts)
-    let imageBlocks = '';
+    // Build Gutenberg Gallery block with nested images
+    let galleryBlock = '';
     if (mediaItems && mediaItems.length > 0) {
-      imageBlocks = mediaItems.map(media => {
-        // Use large size for display, link to full size
+      const imageIds = mediaItems.map(m => m.id);
+      const nestedImages = mediaItems.map(media => {
         const displayUrl = media.largeUrl || media.url;
         const linkUrl = media.fullUrl || media.url;
         return `<!-- wp:image {"id":${media.id},"sizeSlug":"large","linkDestination":"media"} -->
 <figure class="wp-block-image size-large"><a href="${linkUrl}"><img src="${displayUrl}" alt="" class="wp-image-${media.id}"/></a></figure>
 <!-- /wp:image -->`;
-      }).join('\n\n');
+      }).join('\n');
+
+      galleryBlock = `<!-- wp:gallery {"linkTo":"media","columns":3,"ids":[${imageIds.join(',')}]} -->
+<figure class="wp-block-gallery has-nested-images columns-3 is-cropped">
+${nestedImages}
+</figure>
+<!-- /wp:gallery -->`;
     }
 
-    const fullContent = content + '\n\n' + imageBlocks;
+    const fullContent = content + '\n\n' + galleryBlock;
 
     // Create the post
     const postBody = {
