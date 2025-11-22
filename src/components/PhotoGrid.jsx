@@ -588,13 +588,50 @@ function PhotoGrid({ photos, onPhotoClick, selectedCollection, collections, onRe
               {/* Coordinates Input */}
               <div className="location-modal-section">
                 <div className="location-modal-label">Coordinates</div>
+
+                {/* Quick paste field */}
+                <div className="coordinate-paste-field">
+                  <input
+                    type="text"
+                    placeholder="Paste coordinates here (e.g., 13.744923, 100.556086)"
+                    onPaste={(e) => {
+                      e.preventDefault();
+                      const text = e.clipboardData.getData('text').trim();
+                      console.log('Pasted text:', text);
+
+                      // Try to parse coordinates
+                      const numbers = text.match(/-?\d+\.\d+/g);
+                      if (numbers && numbers.length >= 2) {
+                        const lat = parseFloat(numbers[0]);
+                        const lng = parseFloat(numbers[1]);
+                        if (lat >= -90 && lat <= 90 && lng >= -180 && lng <= 180) {
+                          setLocationInput(prev => ({
+                            ...prev,
+                            latitude: numbers[0],
+                            longitude: numbers[1]
+                          }));
+                        } else {
+                          alert('Coordinates out of valid range');
+                        }
+                      } else {
+                        alert('Could not parse coordinates. Please enter them manually below.');
+                      }
+                    }}
+                    onChange={() => {}} // Controlled but we handle via onPaste
+                    value={locationInput.latitude && locationInput.longitude ? `${locationInput.latitude}, ${locationInput.longitude}` : ''}
+                  />
+                  <span className="paste-hint">Press Ctrl+V to paste</span>
+                </div>
+
+                <div className="coordinates-separator">or enter manually:</div>
+
                 <div className="coordinates-input-row">
                   <div className="coordinate-input">
                     <label>Latitude</label>
                     <input
                       type="number"
                       step="any"
-                      placeholder="e.g., 48.8584"
+                      placeholder="e.g., 13.744923"
                       value={locationInput.latitude}
                       onChange={(e) => setLocationInput(prev => ({ ...prev, latitude: e.target.value }))}
                     />
@@ -604,7 +641,7 @@ function PhotoGrid({ photos, onPhotoClick, selectedCollection, collections, onRe
                     <input
                       type="number"
                       step="any"
-                      placeholder="e.g., 2.2945"
+                      placeholder="e.g., 100.556086"
                       value={locationInput.longitude}
                       onChange={(e) => setLocationInput(prev => ({ ...prev, longitude: e.target.value }))}
                     />
@@ -612,7 +649,7 @@ function PhotoGrid({ photos, onPhotoClick, selectedCollection, collections, onRe
                 </div>
                 <div className="coordinates-actions">
                   <button className="secondary small" onClick={handlePasteCoordinates}>
-                    Paste Coordinates
+                    Paste from Clipboard
                   </button>
                   <button
                     className="secondary small"

@@ -692,6 +692,52 @@ button.small {
   margin-bottom: 0.25rem;
 }
 
+.coordinate-paste-field {
+  position: relative;
+  margin-bottom: 1rem;
+}
+
+.coordinate-paste-field input {
+  width: 100%;
+  padding-right: 100px;
+}
+
+.paste-hint {
+  position: absolute;
+  right: 10px;
+  top: 50%;
+  transform: translateY(-50%);
+  font-size: 0.7rem;
+  color: var(--text-light);
+  pointer-events: none;
+}
+
+.coordinates-separator {
+  text-align: center;
+  font-size: 0.75rem;
+  color: var(--text-light);
+  margin: 0.75rem 0;
+  position: relative;
+}
+
+.coordinates-separator::before,
+.coordinates-separator::after {
+  content: '';
+  position: absolute;
+  top: 50%;
+  width: 35%;
+  height: 1px;
+  background: var(--border);
+}
+
+.coordinates-separator::before {
+  left: 0;
+}
+
+.coordinates-separator::after {
+  right: 0;
+}
+
 .coordinates-input-row {
   display: flex;
   gap: 1rem;
