@@ -9,6 +9,7 @@ contextBridge.exposeInMainWorld('electron', {
   getPhoto: (id) => ipcRenderer.invoke('get-photo', id),
   updatePhoto: (id, updates) => ipcRenderer.invoke('update-photo', id, updates),
   deletePhoto: (id) => ipcRenderer.invoke('delete-photo', id),
+  deletePhotos: (ids) => ipcRenderer.invoke('delete-photos', ids),
   readPhotoFile: (filePath) => ipcRenderer.invoke('read-photo-file', filePath),
 
   // Collection operations
@@ -17,7 +18,9 @@ contextBridge.exposeInMainWorld('electron', {
   updateCollection: (id, name, description) => ipcRenderer.invoke('update-collection', id, name, description),
   deleteCollection: (id) => ipcRenderer.invoke('delete-collection', id),
   addPhotoToCollection: (photoId, collectionId) => ipcRenderer.invoke('add-photo-to-collection', photoId, collectionId),
+  addPhotosToCollection: (photoIds, collectionId) => ipcRenderer.invoke('add-photos-to-collection', photoIds, collectionId),
   removePhotoFromCollection: (photoId, collectionId) => ipcRenderer.invoke('remove-photo-from-collection', photoId, collectionId),
+  removePhotosFromCollection: (photoIds, collectionId) => ipcRenderer.invoke('remove-photos-from-collection', photoIds, collectionId),
   getCollectionPhotos: (collectionId) => ipcRenderer.invoke('get-collection-photos', collectionId),
   getPhotoCollections: (photoId) => ipcRenderer.invoke('get-photo-collections', photoId),
 

@@ -321,6 +321,150 @@ button.small {
 .toolbar-info {
   font-size: 0.875rem;
   color: var(--text-light);
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+}
+
+/* Selection UI */
+.selection-toolbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0.75rem 1.5rem;
+  background: var(--primary);
+  color: white;
+  gap: 1rem;
+}
+
+.selection-info {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  font-weight: 500;
+}
+
+.selection-info button {
+  background: rgba(255, 255, 255, 0.2);
+  color: white;
+  border: 1px solid rgba(255, 255, 255, 0.3);
+}
+
+.selection-info button:hover {
+  background: rgba(255, 255, 255, 0.3);
+}
+
+.selection-actions {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.selection-actions button {
+  background: rgba(255, 255, 255, 0.2);
+  color: white;
+  border: 1px solid rgba(255, 255, 255, 0.3);
+}
+
+.selection-actions button:hover {
+  background: rgba(255, 255, 255, 0.3);
+}
+
+.selection-actions button.danger {
+  background: #dc2626;
+  border-color: #dc2626;
+}
+
+.selection-actions button.danger:hover {
+  background: #b91c1c;
+}
+
+.collection-picker-wrapper {
+  position: relative;
+}
+
+.collection-picker-dropdown {
+  position: absolute;
+  top: 100%;
+  left: 0;
+  margin-top: 0.25rem;
+  background: white;
+  border: 1px solid var(--border);
+  border-radius: 0.375rem;
+  box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+  min-width: 180px;
+  z-index: 100;
+  max-height: 200px;
+  overflow-y: auto;
+}
+
+.collection-picker-item {
+  padding: 0.5rem 0.75rem;
+  color: var(--text-dark);
+  cursor: pointer;
+  font-size: 0.875rem;
+}
+
+.collection-picker-item:hover {
+  background: var(--bg-light);
+}
+
+.collection-picker-item:first-child {
+  border-radius: 0.375rem 0.375rem 0 0;
+}
+
+.collection-picker-item:last-child {
+  border-radius: 0 0 0.375rem 0.375rem;
+}
+
+/* Photo card selection */
+.photo-card {
+  position: relative;
+}
+
+.photo-card.selected {
+  outline: 3px solid var(--primary);
+  outline-offset: -3px;
+}
+
+.photo-card.selected::after {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: rgba(37, 99, 235, 0.15);
+  pointer-events: none;
+}
+
+.photo-checkbox {
+  position: absolute;
+  top: 0.5rem;
+  left: 0.5rem;
+  width: 24px;
+  height: 24px;
+  background: rgba(255, 255, 255, 0.9);
+  border: 2px solid var(--border);
+  border-radius: 4px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  z-index: 10;
+  font-size: 14px;
+  font-weight: bold;
+  color: white;
+  transition: all 0.15s;
+}
+
+.photo-checkbox:hover {
+  border-color: var(--primary);
+}
+
+.photo-checkbox.checked {
+  background: var(--primary);
+  border-color: var(--primary);
 }
 
 .photo-card-info {

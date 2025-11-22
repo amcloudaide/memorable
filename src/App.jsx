@@ -181,6 +181,8 @@ function App() {
               photos={photos}
               onPhotoClick={handlePhotoClick}
               selectedCollection={selectedCollection}
+              collections={collections}
+              onRefresh={loadPhotos}
             />
           )}
 

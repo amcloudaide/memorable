@@ -288,6 +288,15 @@ ipcMain.handle('delete-photo', (event, id) => {
   return true;
 });
 
+// Bulk delete photos
+ipcMain.handle('delete-photos', (event, ids) => {
+  if (!Array.isArray(ids) || ids.length === 0) return false;
+  const placeholders = ids.map(() => '?').join(',');
+  db.run(`DELETE FROM photos WHERE id IN (${placeholders})`, ids);
+  saveDatabase();
+  return true;
+});
+
 // Collections
 ipcMain.handle('create-collection', (event, name, description) => {
   db.run('INSERT INTO collections (name, description) VALUES (?, ?)', [name, description]);
@@ -317,6 +326,25 @@ ipcMain.handle('delete-collection', (event, id) => {
 // Add photo to collection
 ipcMain.handle('add-photo-to-collection', (event, photoId, collectionId) => {
   db.run('INSERT OR IGNORE INTO photo_collections (photo_id, collection_id) VALUES (?, ?)', [photoId, collectionId]);
+  saveDatabase();
+  return true;
+});
+
+// Bulk add photos to collection
+ipcMain.handle('add-photos-to-collection', (event, photoIds, collectionId) => {
+  if (!Array.isArray(photoIds) || photoIds.length === 0) return false;
+  photoIds.forEach(photoId => {
+    db.run('INSERT OR IGNORE INTO photo_collections (photo_id, collection_id) VALUES (?, ?)', [photoId, collectionId]);
+  });
+  saveDatabase();
+  return true;
+});
+
+// Bulk remove photos from collection
+ipcMain.handle('remove-photos-from-collection', (event, photoIds, collectionId) => {
+  if (!Array.isArray(photoIds) || photoIds.length === 0) return false;
+  const placeholders = photoIds.map(() => '?').join(',');
+  db.run(`DELETE FROM photo_collections WHERE photo_id IN (${placeholders}) AND collection_id = ?`, [...photoIds, collectionId]);
   saveDatabase();
   return true;
 });

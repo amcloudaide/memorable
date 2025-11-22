@@ -1,10 +1,13 @@
 import React, { useState, useEffect, useRef, useMemo } from 'react';
 
-function PhotoGrid({ photos, onPhotoClick, selectedCollection }) {
+function PhotoGrid({ photos, onPhotoClick, selectedCollection, collections, onRefresh }) {
   const [photoThumbnails, setPhotoThumbnails] = useState({});
   const [displayPhotos, setDisplayPhotos] = useState([]);
   const [thumbnailSize, setThumbnailSize] = useState(200);
   const [activeDate, setActiveDate] = useState(null);
+  const [selectionMode, setSelectionMode] = useState(false);
+  const [selectedIds, setSelectedIds] = useState(new Set());
+  const [showCollectionPicker, setShowCollectionPicker] = useState(false);
   const scrollContainerRef = useRef(null);
   const dateRefs = useRef({});
 
@@ -15,6 +18,13 @@ function PhotoGrid({ photos, onPhotoClick, selectedCollection }) {
       setDisplayPhotos(photos);
     }
   }, [photos, selectedCollection]);
+
+  // Clear selection when exiting selection mode
+  useEffect(() => {
+    if (!selectionMode) {
+      setSelectedIds(new Set());
+    }
+  }, [selectionMode]);
 
   const loadCollectionPhotos = async () => {
     try {
@@ -144,7 +154,6 @@ function PhotoGrid({ photos, onPhotoClick, selectedCollection }) {
     if (!scrollContainerRef.current) return;
 
     const container = scrollContainerRef.current;
-    const scrollTop = container.scrollTop;
 
     // Find which date group is currently in view
     for (const group of groupedPhotos) {
@@ -156,6 +165,82 @@ function PhotoGrid({ photos, onPhotoClick, selectedCollection }) {
           setActiveDate(group.key);
           break;
         }
+      }
+    }
+  };
+
+  // Selection handlers
+  const toggleSelection = (photoId, event) => {
+    event.stopPropagation();
+    setSelectedIds(prev => {
+      const newSet = new Set(prev);
+      if (newSet.has(photoId)) {
+        newSet.delete(photoId);
+      } else {
+        newSet.add(photoId);
+      }
+      return newSet;
+    });
+  };
+
+  const handlePhotoClick = (photo, event) => {
+    if (selectionMode) {
+      toggleSelection(photo.id, event);
+    } else {
+      onPhotoClick(photo);
+    }
+  };
+
+  const selectAll = () => {
+    setSelectedIds(new Set(displayPhotos.map(p => p.id)));
+  };
+
+  const deselectAll = () => {
+    setSelectedIds(new Set());
+  };
+
+  const handleBulkDelete = async () => {
+    if (selectedIds.size === 0) return;
+
+    const count = selectedIds.size;
+    if (confirm(`Are you sure you want to remove ${count} photo${count > 1 ? 's' : ''} from the database?`)) {
+      try {
+        await window.electron.deletePhotos(Array.from(selectedIds));
+        setSelectedIds(new Set());
+        setSelectionMode(false);
+        if (onRefresh) onRefresh();
+      } catch (error) {
+        console.error('Error deleting photos:', error);
+      }
+    }
+  };
+
+  const handleAddToCollection = async (collectionId) => {
+    if (selectedIds.size === 0) return;
+
+    try {
+      await window.electron.addPhotosToCollection(Array.from(selectedIds), collectionId);
+      setShowCollectionPicker(false);
+      setSelectedIds(new Set());
+      setSelectionMode(false);
+      if (onRefresh) onRefresh();
+    } catch (error) {
+      console.error('Error adding photos to collection:', error);
+    }
+  };
+
+  const handleRemoveFromCollection = async () => {
+    if (selectedIds.size === 0 || !selectedCollection) return;
+
+    const count = selectedIds.size;
+    if (confirm(`Remove ${count} photo${count > 1 ? 's' : ''} from this collection?`)) {
+      try {
+        await window.electron.removePhotosFromCollection(Array.from(selectedIds), selectedCollection);
+        setSelectedIds(new Set());
+        setSelectionMode(false);
+        if (onRefresh) onRefresh();
+      } catch (error) {
+        console.error('Error removing photos from collection:', error);
       }
     }
   };
@@ -177,9 +262,69 @@ function PhotoGrid({ photos, onPhotoClick, selectedCollection }) {
   return (
     <div className="photo-grid-container">
       <div className="photo-grid-main">
+        {/* Selection Toolbar */}
+        {selectionMode && (
+          <div className="selection-toolbar">
+            <div className="selection-info">
+              <span>{selectedIds.size} selected</span>
+              <button className="secondary small" onClick={selectAll}>Select All</button>
+              <button className="secondary small" onClick={deselectAll}>Deselect All</button>
+            </div>
+            <div className="selection-actions">
+              <div className="collection-picker-wrapper">
+                <button
+                  className="secondary"
+                  onClick={() => setShowCollectionPicker(!showCollectionPicker)}
+                  disabled={selectedIds.size === 0}
+                >
+                  Add to Collection
+                </button>
+                {showCollectionPicker && collections && collections.length > 0 && (
+                  <div className="collection-picker-dropdown">
+                    {collections.map(collection => (
+                      <div
+                        key={collection.id}
+                        className="collection-picker-item"
+                        onClick={() => handleAddToCollection(collection.id)}
+                      >
+                        {collection.name}
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+              {selectedCollection && (
+                <button
+                  className="secondary"
+                  onClick={handleRemoveFromCollection}
+                  disabled={selectedIds.size === 0}
+                >
+                  Remove from Collection
+                </button>
+              )}
+              <button
+                className="danger"
+                onClick={handleBulkDelete}
+                disabled={selectedIds.size === 0}
+              >
+                Delete
+              </button>
+              <button className="secondary" onClick={() => setSelectionMode(false)}>
+                Cancel
+              </button>
+            </div>
+          </div>
+        )}
+
+        {/* Regular Toolbar */}
         <div className="photo-grid-toolbar">
           <div className="toolbar-info">
             {displayPhotos.length} photos
+            {!selectionMode && (
+              <button className="secondary small" onClick={() => setSelectionMode(true)}>
+                Select
+              </button>
+            )}
           </div>
           <div className="size-slider-container">
             <label>Size:</label>
@@ -214,9 +359,17 @@ function PhotoGrid({ photos, onPhotoClick, selectedCollection }) {
                 {group.photos.map((photo) => (
                   <div
                     key={photo.id}
-                    className="photo-card"
-                    onClick={() => onPhotoClick(photo)}
+                    className={`photo-card ${selectedIds.has(photo.id) ? 'selected' : ''}`}
+                    onClick={(e) => handlePhotoClick(photo, e)}
                   >
+                    {selectionMode && (
+                      <div
+                        className={`photo-checkbox ${selectedIds.has(photo.id) ? 'checked' : ''}`}
+                        onClick={(e) => toggleSelection(photo.id, e)}
+                      >
+                        {selectedIds.has(photo.id) && '✓'}
+                      </div>
+                    )}
                     {photoThumbnails[photo.id] ? (
                       <img src={photoThumbnails[photo.id]} alt={photo.file_name} />
                     ) : (
