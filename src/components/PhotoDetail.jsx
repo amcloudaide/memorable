@@ -9,6 +9,13 @@ function PhotoDetail({ photo, collections, onClose, onUpdate, onDelete, onAddToC
   const [newMetadataKey, setNewMetadataKey] = useState('');
   const [newMetadataValue, setNewMetadataValue] = useState('');
 
+  // Location lookup state
+  const [showLocationPicker, setShowLocationPicker] = useState(false);
+  const [locationLoading, setLocationLoading] = useState(false);
+  const [reverseGeocodeResult, setReverseGeocodeResult] = useState(null);
+  const [nearbyPlaces, setNearbyPlaces] = useState([]);
+  const [searchRadius, setSearchRadius] = useState(100);
+
   useEffect(() => {
     loadPhotoData();
     loadPhotoCollections();
@@ -29,7 +36,8 @@ function PhotoDetail({ photo, collections, onClose, onUpdate, onDelete, onAddToC
       lens_model: photo.lens_model || '',
       focal_length: photo.focal_length || '',
       aperture: photo.aperture || '',
-      iso: photo.iso || ''
+      iso: photo.iso || '',
+      location_name: photo.location_name || ''
     });
   };
 
@@ -88,6 +96,62 @@ function PhotoDetail({ photo, collections, onClose, onUpdate, onDelete, onAddToC
     }
   };
 
+  // Location lookup functions
+  const handleLookupLocation = async () => {
+    if (!photo.latitude || !photo.longitude) return;
+
+    setShowLocationPicker(true);
+    setLocationLoading(true);
+    setNearbyPlaces([]);
+    setReverseGeocodeResult(null);
+
+    try {
+      // Get reverse geocode result
+      const geocodeResult = await window.electron.reverseGeocode(photo.latitude, photo.longitude);
+      if (geocodeResult.success) {
+        setReverseGeocodeResult(geocodeResult);
+      }
+
+      // Get nearby places
+      const placesResult = await window.electron.searchNearbyPlaces(photo.latitude, photo.longitude, searchRadius);
+      if (placesResult.success) {
+        setNearbyPlaces(placesResult.places);
+      }
+    } catch (error) {
+      console.error('Location lookup error:', error);
+    } finally {
+      setLocationLoading(false);
+    }
+  };
+
+  const handleSearchWithRadius = async (newRadius) => {
+    setSearchRadius(newRadius);
+    setLocationLoading(true);
+
+    try {
+      const placesResult = await window.electron.searchNearbyPlaces(photo.latitude, photo.longitude, newRadius);
+      if (placesResult.success) {
+        setNearbyPlaces(placesResult.places);
+      }
+    } catch (error) {
+      console.error('Location search error:', error);
+    } finally {
+      setLocationLoading(false);
+    }
+  };
+
+  const handleSelectPlace = async (placeName) => {
+    await onUpdate(photo.id, { location_name: placeName });
+    setFormData(prev => ({ ...prev, location_name: placeName }));
+    setShowLocationPicker(false);
+  };
+
+  const handleOpenInMaps = async () => {
+    if (photo.latitude && photo.longitude) {
+      await window.electron.openInMaps(photo.latitude, photo.longitude);
+    }
+  };
+
   const formatFileSize = (bytes) => {
     if (!bytes) return 'Unknown';
     const mb = bytes / (1024 * 1024);
@@ -101,6 +165,24 @@ function PhotoDetail({ photo, collections, onClose, onUpdate, onDelete, onAddToC
     } catch {
       return 'Unknown';
     }
+  };
+
+  const formatDistance = (meters) => {
+    if (meters < 1000) return `${meters}m`;
+    return `${(meters / 1000).toFixed(1)}km`;
+  };
+
+  const getCategoryIcon = (category) => {
+    const icons = {
+      'Food & Drink': '🍽️',
+      'Tourism': '🏛️',
+      'Historic': '🏰',
+      'Leisure': '🌳',
+      'Shop': '🛒',
+      'Amenity': '📍',
+      'Place': '📌'
+    };
+    return icons[category] || '📍';
   };
 
   return (
@@ -172,9 +254,39 @@ function PhotoDetail({ photo, collections, onClose, onUpdate, onDelete, onAddToC
                   </div>
                 ) : (
                   <div className="metadata-value">
-                    {photo.latitude && photo.longitude
-                      ? `${photo.latitude.toFixed(6)}, ${photo.longitude.toFixed(6)}`
-                      : 'No location data'}
+                    {photo.latitude && photo.longitude ? (
+                      <div className="location-info">
+                        <span>{photo.latitude.toFixed(6)}, {photo.longitude.toFixed(6)}</span>
+                        <div className="location-actions">
+                          <button className="small secondary" onClick={handleLookupLocation}>
+                            Lookup Places
+                          </button>
+                          <button className="small secondary" onClick={handleOpenInMaps}>
+                            Open Maps
+                          </button>
+                        </div>
+                      </div>
+                    ) : (
+                      'No location data'
+                    )}
+                  </div>
+                )}
+              </div>
+
+              {/* Location Name Field */}
+              <div className="metadata-item">
+                <label className="metadata-label">Location Name</label>
+                {editing ? (
+                  <input
+                    type="text"
+                    name="location_name"
+                    value={formData.location_name}
+                    onChange={handleInputChange}
+                    placeholder="e.g., Central Park, NYC"
+                  />
+                ) : (
+                  <div className="metadata-value">
+                    {photo.location_name || formData.location_name || 'Not set'}
                   </div>
                 )}
               </div>
@@ -394,6 +506,108 @@ function PhotoDetail({ photo, collections, onClose, onUpdate, onDelete, onAddToC
             </div>
           </div>
         </div>
+
+        {/* Location Picker Modal */}
+        {showLocationPicker && (
+          <div className="location-picker-overlay" onClick={() => setShowLocationPicker(false)}>
+            <div className="location-picker" onClick={(e) => e.stopPropagation()}>
+              <div className="location-picker-header">
+                <h3>Select Location</h3>
+                <button className="secondary small" onClick={() => setShowLocationPicker(false)}>Close</button>
+              </div>
+
+              {/* Reverse Geocode Result */}
+              {reverseGeocodeResult && (
+                <div className="location-section">
+                  <div className="location-section-title">Address</div>
+                  <div
+                    className="location-result-item clickable"
+                    onClick={() => handleSelectPlace(reverseGeocodeResult.address)}
+                  >
+                    <span className="location-icon">📍</span>
+                    <div className="location-result-info">
+                      <div className="location-result-name">{reverseGeocodeResult.address}</div>
+                      <div className="location-result-type">Click to use this address</div>
+                    </div>
+                  </div>
+                </div>
+              )}
+
+              {/* Search Radius Control */}
+              <div className="location-section">
+                <div className="location-section-title">
+                  Search Radius: {searchRadius}m
+                </div>
+                <div className="radius-buttons">
+                  {[50, 100, 200, 500, 1000].map(radius => (
+                    <button
+                      key={radius}
+                      className={`small ${searchRadius === radius ? '' : 'secondary'}`}
+                      onClick={() => handleSearchWithRadius(radius)}
+                    >
+                      {radius}m
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+              {/* Nearby Places */}
+              <div className="location-section">
+                <div className="location-section-title">
+                  Nearby Places {nearbyPlaces.length > 0 && `(${nearbyPlaces.length})`}
+                </div>
+
+                {locationLoading ? (
+                  <div className="location-loading">Searching...</div>
+                ) : nearbyPlaces.length === 0 ? (
+                  <div className="location-empty">No places found nearby. Try increasing the search radius.</div>
+                ) : (
+                  <div className="location-results">
+                    {nearbyPlaces.map((place) => (
+                      <div
+                        key={place.id}
+                        className="location-result-item clickable"
+                        onClick={() => handleSelectPlace(place.name)}
+                      >
+                        <span className="location-icon">{getCategoryIcon(place.category)}</span>
+                        <div className="location-result-info">
+                          <div className="location-result-name">{place.name}</div>
+                          <div className="location-result-type">
+                            {place.category} • {formatDistance(place.distance)}
+                            {place.address && ` • ${place.address}`}
+                          </div>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+
+              {/* Custom Input */}
+              <div className="location-section">
+                <div className="location-section-title">Custom Location Name</div>
+                <div className="custom-location-input">
+                  <input
+                    type="text"
+                    placeholder="Enter custom location name..."
+                    id="custom-location"
+                  />
+                  <button
+                    className="small"
+                    onClick={() => {
+                      const input = document.getElementById('custom-location');
+                      if (input.value.trim()) {
+                        handleSelectPlace(input.value.trim());
+                      }
+                    }}
+                  >
+                    Save
+                  </button>
+                </div>
+              </div>
+            </div>
+          </div>
+        )}
       </div>
     </div>
   );

@@ -29,5 +29,10 @@ contextBridge.exposeInMainWorld('electron', {
   getCustomMetadata: (photoId) => ipcRenderer.invoke('get-custom-metadata', photoId),
 
   // EXIF operations
-  writeMetadataToExif: (photoId) => ipcRenderer.invoke('write-metadata-to-exif', photoId)
+  writeMetadataToExif: (photoId) => ipcRenderer.invoke('write-metadata-to-exif', photoId),
+
+  // Location operations
+  reverseGeocode: (latitude, longitude) => ipcRenderer.invoke('reverse-geocode', latitude, longitude),
+  searchNearbyPlaces: (latitude, longitude, radius) => ipcRenderer.invoke('search-nearby-places', latitude, longitude, radius),
+  openInMaps: (latitude, longitude) => ipcRenderer.invoke('open-in-maps', latitude, longitude)
 });

@@ -1,10 +1,38 @@
-const { app, BrowserWindow, ipcMain, dialog } = require('electron');
+const { app, BrowserWindow, ipcMain, dialog, net } = require('electron');
 const path = require('path');
 const fs = require('fs').promises;
 const fsSync = require('fs');
 const initSqlJs = require('sql.js');
 const exifr = require('exifr');
 const piexif = require('piexifjs');
+
+// Helper function to make HTTP requests
+function fetchUrl(url) {
+  return new Promise((resolve, reject) => {
+    const request = net.request(url);
+    let data = '';
+
+    request.on('response', (response) => {
+      response.on('data', (chunk) => {
+        data += chunk.toString();
+      });
+      response.on('end', () => {
+        try {
+          resolve(JSON.parse(data));
+        } catch (e) {
+          resolve(data);
+        }
+      });
+    });
+
+    request.on('error', (error) => {
+      reject(error);
+    });
+
+    request.setHeader('User-Agent', 'Memorable Photo App/1.0');
+    request.end();
+  });
+}
 
 let mainWindow;
 let db;
@@ -78,6 +106,13 @@ async function initDatabase() {
     CREATE INDEX IF NOT EXISTS idx_photos_location ON photos(latitude, longitude);
     CREATE INDEX IF NOT EXISTS idx_photos_date ON photos(date_taken);
   `);
+
+  // Add location_name column if it doesn't exist (migration for existing databases)
+  try {
+    db.run('ALTER TABLE photos ADD COLUMN location_name TEXT');
+  } catch (e) {
+    // Column already exists, ignore
+  }
 
   saveDatabase();
 }
@@ -266,7 +301,7 @@ ipcMain.handle('update-photo', (event, id, updates) => {
   const allowedFields = [
     'date_taken', 'latitude', 'longitude', 'rating', 'notes',
     'camera_make', 'camera_model', 'lens_model', 'focal_length',
-    'aperture', 'shutter_speed', 'iso'
+    'aperture', 'shutter_speed', 'iso', 'location_name'
   ];
 
   const fields = Object.keys(updates).filter(key => allowedFields.includes(key));
@@ -509,4 +544,114 @@ ipcMain.handle('write-metadata-to-exif', async (event, photoId) => {
     console.error('Error writing EXIF:', error);
     return { success: false, message: error.message };
   }
+});
+
+// Reverse geocoding - get address from coordinates
+ipcMain.handle('reverse-geocode', async (event, latitude, longitude) => {
+  try {
+    const url = `https://nominatim.openstreetmap.org/reverse?format=json&lat=${latitude}&lon=${longitude}&zoom=18&addressdetails=1`;
+    const result = await fetchUrl(url);
+
+    if (result.error) {
+      return { success: false, error: result.error };
+    }
+
+    return {
+      success: true,
+      address: result.display_name,
+      details: result.address,
+      type: result.type,
+      name: result.name
+    };
+  } catch (error) {
+    console.error('Reverse geocoding error:', error);
+    return { success: false, error: error.message };
+  }
+});
+
+// Search nearby places using Overpass API
+ipcMain.handle('search-nearby-places', async (event, latitude, longitude, radius = 100) => {
+  try {
+    // Search for various POI types within radius (in meters)
+    const overpassQuery = `
+      [out:json][timeout:25];
+      (
+        node["amenity"~"restaurant|cafe|bar|fast_food|pub"](around:${radius},${latitude},${longitude});
+        node["tourism"~"attraction|museum|hotel|viewpoint|artwork"](around:${radius},${latitude},${longitude});
+        node["historic"](around:${radius},${latitude},${longitude});
+        node["leisure"~"park|garden|playground"](around:${radius},${latitude},${longitude});
+        node["shop"](around:${radius},${latitude},${longitude});
+        node["name"](around:${radius},${latitude},${longitude});
+        way["name"]["building"](around:${radius},${latitude},${longitude});
+      );
+      out body center;
+    `;
+
+    const url = `https://overpass-api.de/api/interpreter?data=${encodeURIComponent(overpassQuery)}`;
+    const result = await fetchUrl(url);
+
+    if (!result.elements) {
+      return { success: true, places: [] };
+    }
+
+    // Process and dedupe results
+    const places = result.elements
+      .filter(el => el.tags && el.tags.name)
+      .map(el => ({
+        id: el.id,
+        name: el.tags.name,
+        type: el.tags.amenity || el.tags.tourism || el.tags.historic || el.tags.leisure || el.tags.shop || 'place',
+        category: getCategoryFromTags(el.tags),
+        lat: el.lat || el.center?.lat,
+        lon: el.lon || el.center?.lon,
+        address: el.tags['addr:street'] ? `${el.tags['addr:housenumber'] || ''} ${el.tags['addr:street']}`.trim() : null,
+        distance: calculateDistance(latitude, longitude, el.lat || el.center?.lat, el.lon || el.center?.lon)
+      }))
+      .sort((a, b) => a.distance - b.distance)
+      .slice(0, 20); // Limit to 20 results
+
+    return { success: true, places };
+  } catch (error) {
+    console.error('Nearby places search error:', error);
+    return { success: false, error: error.message };
+  }
+});
+
+// Helper function to categorize places
+function getCategoryFromTags(tags) {
+  if (tags.amenity) {
+    const foodTypes = ['restaurant', 'cafe', 'bar', 'fast_food', 'pub', 'food_court'];
+    if (foodTypes.includes(tags.amenity)) return 'Food & Drink';
+    return 'Amenity';
+  }
+  if (tags.tourism) return 'Tourism';
+  if (tags.historic) return 'Historic';
+  if (tags.leisure) return 'Leisure';
+  if (tags.shop) return 'Shop';
+  return 'Place';
+}
+
+// Calculate distance between two coordinates in meters
+function calculateDistance(lat1, lon1, lat2, lon2) {
+  if (!lat2 || !lon2) return Infinity;
+  const R = 6371e3; // Earth's radius in meters
+  const φ1 = lat1 * Math.PI / 180;
+  const φ2 = lat2 * Math.PI / 180;
+  const Δφ = (lat2 - lat1) * Math.PI / 180;
+  const Δλ = (lon2 - lon1) * Math.PI / 180;
+
+  const a = Math.sin(Δφ/2) * Math.sin(Δφ/2) +
+            Math.cos(φ1) * Math.cos(φ2) *
+            Math.sin(Δλ/2) * Math.sin(Δλ/2);
+  const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a));
+
+  return Math.round(R * c);
+}
+
+// Open location in Google Maps
+ipcMain.handle('open-in-maps', async (event, latitude, longitude) => {
+  const { shell } = require('electron');
+  const url = `https://www.google.com/maps/search/?api=1&query=${latitude},${longitude}`;
+  await shell.openExternal(url);
+  return true;
 });

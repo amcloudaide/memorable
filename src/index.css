@@ -467,6 +467,146 @@ button.small {
   border-color: var(--primary);
 }
 
+/* Location Info in PhotoDetail */
+.location-info {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+
+.location-actions {
+  display: flex;
+  gap: 0.5rem;
+  margin-top: 0.25rem;
+}
+
+/* Location Picker Modal */
+.location-picker-overlay {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: rgba(0, 0, 0, 0.5);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 2000;
+}
+
+.location-picker {
+  background: white;
+  border-radius: 0.5rem;
+  width: 500px;
+  max-width: 90vw;
+  max-height: 80vh;
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+  box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.2);
+}
+
+.location-picker-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 1rem 1.5rem;
+  border-bottom: 1px solid var(--border);
+}
+
+.location-picker-header h3 {
+  font-size: 1.125rem;
+  font-weight: 600;
+  margin: 0;
+}
+
+.location-section {
+  padding: 1rem 1.5rem;
+  border-bottom: 1px solid var(--border);
+}
+
+.location-section:last-child {
+  border-bottom: none;
+}
+
+.location-section-title {
+  font-size: 0.75rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  color: var(--text-light);
+  margin-bottom: 0.75rem;
+}
+
+.radius-buttons {
+  display: flex;
+  gap: 0.5rem;
+  flex-wrap: wrap;
+}
+
+.location-results {
+  max-height: 250px;
+  overflow-y: auto;
+}
+
+.location-result-item {
+  display: flex;
+  align-items: flex-start;
+  gap: 0.75rem;
+  padding: 0.75rem;
+  border-radius: 0.375rem;
+  margin-bottom: 0.5rem;
+  background: var(--bg-light);
+}
+
+.location-result-item.clickable {
+  cursor: pointer;
+  transition: background 0.15s;
+}
+
+.location-result-item.clickable:hover {
+  background: var(--border);
+}
+
+.location-icon {
+  font-size: 1.25rem;
+  flex-shrink: 0;
+}
+
+.location-result-info {
+  flex: 1;
+  min-width: 0;
+}
+
+.location-result-name {
+  font-weight: 500;
+  font-size: 0.875rem;
+  color: var(--text-dark);
+  word-wrap: break-word;
+}
+
+.location-result-type {
+  font-size: 0.75rem;
+  color: var(--text-light);
+  margin-top: 0.25rem;
+}
+
+.location-loading,
+.location-empty {
+  padding: 1rem;
+  text-align: center;
+  color: var(--text-light);
+  font-size: 0.875rem;
+}
+
+.custom-location-input {
+  display: flex;
+  gap: 0.5rem;
+}
+
+.custom-location-input input {
+  flex: 1;
+}
+
 .photo-card-info {
   padding: 0.75rem;
 }
