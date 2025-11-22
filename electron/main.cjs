@@ -810,7 +810,7 @@ ipcMain.handle('wp-create-tag', async (event, name) => {
 });
 
 // Upload media to WordPress
-ipcMain.handle('wp-upload-media', async (event, filePath, description = '') => {
+ipcMain.handle('wp-upload-media', async (event, filePath, mediaInfo = {}) => {
   try {
     if (!wpSettings) loadWpSettings();
     if (!wpSettings) throw new Error('WordPress settings not configured');
@@ -842,17 +842,37 @@ ipcMain.handle('wp-upload-media', async (event, filePath, description = '') => {
           try {
             const media = JSON.parse(responseData.toString());
             if (response.statusCode >= 200 && response.statusCode < 300) {
-              // Update media with description if provided
-              if (description) {
-                try {
-                  await wpApiRequest(`/media/${media.id}`, 'POST', {
-                    description: description,
-                    caption: description,
-                    alt_text: description
-                  });
-                } catch (e) {
-                  console.error('Failed to update media description:', e);
+              // Update media with proper fields:
+              // - caption: photo date
+              // - description: location info
+              // - alt_text: empty
+              try {
+                const updateData = {
+                  alt_text: ''  // Always empty
+                };
+
+                // Caption = date taken
+                if (mediaInfo.dateTaken) {
+                  try {
+                    const date = new Date(mediaInfo.dateTaken);
+                    updateData.caption = date.toLocaleDateString(undefined, {
+                      year: 'numeric',
+                      month: 'long',
+                      day: 'numeric'
+                    });
+                  } catch (e) {
+                    updateData.caption = '';
+                  }
                 }
+
+                // Description = location info
+                if (mediaInfo.description) {
+                  updateData.description = mediaInfo.description;
+                }
+
+                await wpApiRequest(`/media/${media.id}`, 'POST', updateData);
+              } catch (e) {
+                console.error('Failed to update media fields:', e);
               }
               resolve({ success: true, media });
             } else {
@@ -881,20 +901,14 @@ ipcMain.handle('wp-create-post', async (event, postData) => {
   try {
     const { title, content, categoryIds, tagIds, mediaIds, featuredImageId, status, customFields } = postData;
 
-    // Build gallery block if multiple images
-    let galleryBlock = '';
+    // Build classic WordPress gallery shortcode
+    let galleryShortcode = '';
     if (mediaIds && mediaIds.length > 0) {
       const imageIds = mediaIds.join(',');
-      galleryBlock = `<!-- wp:gallery {"ids":[${imageIds}],"linkTo":"none"} -->
-<figure class="wp-block-gallery has-nested-images columns-default is-cropped">
-${mediaIds.map(id => `<!-- wp:image {"id":${id},"sizeSlug":"large","linkDestination":"none"} -->
-<figure class="wp-block-image size-large"><img src="" alt="" class="wp-image-${id}"/></figure>
-<!-- /wp:image -->`).join('\n')}
-</figure>
-<!-- /wp:gallery -->`;
+      galleryShortcode = `[gallery ids="${imageIds}" columns="3" link="file"]`;
     }
 
-    const fullContent = content + '\n\n' + galleryBlock;
+    const fullContent = content + '\n\n' + galleryShortcode;
 
     // Create the post
     const postBody = {

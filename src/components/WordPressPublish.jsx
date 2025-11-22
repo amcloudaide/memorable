@@ -132,7 +132,8 @@ function WordPressPublish({ photos, onClose, onSuccess }) {
           status: `Uploading ${photo.file_name}...`
         });
 
-        // Build description with location info
+        // Build mediaInfo with date and location for WordPress media fields
+        // caption = date taken, description = location info, alt_text = empty
         let description = '';
         if (photo.latitude && photo.longitude) {
           description = `${photo.latitude}, ${photo.longitude}`;
@@ -143,7 +144,12 @@ function WordPressPublish({ photos, onClose, onSuccess }) {
           description = photo.location_name;
         }
 
-        const result = await window.electron.wpUploadMedia(photo.file_path, description);
+        const mediaInfo = {
+          dateTaken: photo.date_taken,
+          description: description
+        };
+
+        const result = await window.electron.wpUploadMedia(photo.file_path, mediaInfo);
         if (result.success) {
           mediaIds.push(result.media.id);
         } else {
