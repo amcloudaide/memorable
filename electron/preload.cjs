@@ -1,4 +1,4 @@
-const { contextBridge, ipcRenderer } = require('electron');
+const { contextBridge, ipcRenderer, clipboard } = require('electron');
 
 // Expose protected methods that allow the renderer process to use
 // the ipcRenderer without exposing the entire object
@@ -35,5 +35,8 @@ contextBridge.exposeInMainWorld('electron', {
   // Location operations
   reverseGeocode: (latitude, longitude) => ipcRenderer.invoke('reverse-geocode', latitude, longitude),
   searchNearbyPlaces: (latitude, longitude, radius) => ipcRenderer.invoke('search-nearby-places', latitude, longitude, radius),
-  openInMaps: (latitude, longitude) => ipcRenderer.invoke('open-in-maps', latitude, longitude)
+  openInMaps: (latitude, longitude) => ipcRenderer.invoke('open-in-maps', latitude, longitude),
+
+  // Clipboard operations
+  readClipboard: () => clipboard.readText()
 });

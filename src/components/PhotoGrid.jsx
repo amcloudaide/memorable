@@ -261,40 +261,74 @@ function PhotoGrid({ photos, onPhotoClick, selectedCollection, collections, onRe
 
   const handlePasteCoordinates = async () => {
     try {
-      const text = await navigator.clipboard.readText();
-      // Try to parse coordinates from various formats
-      // Format 1: "48.8584, 2.2945" or "48.8584,2.2945"
-      // Format 2: "48.8584° N, 2.2945° E"
-      // Format 3: Google Maps URL with @lat,lng
+      // Use Electron's clipboard API (more reliable in Electron apps)
+      let text;
+      if (window.electron && window.electron.readClipboard) {
+        text = window.electron.readClipboard();
+      } else {
+        text = await navigator.clipboard.readText();
+      }
+      const trimmedText = text.trim();
+
+      console.log('Clipboard content:', trimmedText); // Debug log
 
       let lat, lng;
 
-      // Try Google Maps URL format
-      const urlMatch = text.match(/@(-?\d+\.?\d*),(-?\d+\.?\d*)/);
+      // Try Google Maps URL format: @48.8584,2.2945
+      const urlMatch = trimmedText.match(/@(-?\d+\.?\d*),(-?\d+\.?\d*)/);
       if (urlMatch) {
         lat = urlMatch[1];
         lng = urlMatch[2];
-      } else {
-        // Try simple comma-separated format
-        const simpleMatch = text.match(/(-?\d+\.?\d*)\s*,\s*(-?\d+\.?\d*)/);
+      }
+
+      // Try simple comma-separated format: "48.8584, 2.2945" or "48.8584,2.2945"
+      // This is what Google Maps copies when you click on coordinates
+      if (!lat || !lng) {
+        const simpleMatch = trimmedText.match(/^(-?\d+\.?\d*)\s*,\s*(-?\d+\.?\d*)$/);
         if (simpleMatch) {
           lat = simpleMatch[1];
           lng = simpleMatch[2];
         }
       }
 
+      // Try format with any separating characters (more lenient)
+      if (!lat || !lng) {
+        const lenientMatch = trimmedText.match(/(-?\d+\.\d+)[^\d-]+(-?\d+\.\d+)/);
+        if (lenientMatch) {
+          lat = lenientMatch[1];
+          lng = lenientMatch[2];
+        }
+      }
+
+      // Try to extract just two decimal numbers from the text
+      if (!lat || !lng) {
+        const numbers = trimmedText.match(/-?\d+\.\d+/g);
+        if (numbers && numbers.length >= 2) {
+          lat = numbers[0];
+          lng = numbers[1];
+        }
+      }
+
       if (lat && lng) {
-        setLocationInput(prev => ({
-          ...prev,
-          latitude: lat,
-          longitude: lng
-        }));
+        // Validate the coordinates are in reasonable ranges
+        const latNum = parseFloat(lat);
+        const lngNum = parseFloat(lng);
+
+        if (latNum >= -90 && latNum <= 90 && lngNum >= -180 && lngNum <= 180) {
+          setLocationInput(prev => ({
+            ...prev,
+            latitude: lat,
+            longitude: lng
+          }));
+        } else {
+          alert(`Coordinates out of range. Latitude: ${lat}, Longitude: ${lng}`);
+        }
       } else {
-        alert('Could not parse coordinates from clipboard. Please enter them manually.');
+        alert(`Could not parse coordinates from: "${trimmedText}"\n\nPlease enter them manually or try copying the coordinates again from Google Maps.`);
       }
     } catch (error) {
       console.error('Failed to read clipboard:', error);
-      alert('Could not access clipboard. Please paste coordinates manually.');
+      alert('Could not access clipboard. Please paste coordinates manually using Ctrl+V in the input fields.');
     }
   };
 
