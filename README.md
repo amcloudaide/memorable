@@ -4,17 +4,54 @@ A powerful desktop application for managing, organizing, and exploring your phot
 
 ## Features
 
+### Photo Management
 - **Photo Import & Management**: Import photos and automatically extract EXIF metadata
+- **Photo Grid with Date Navigation**:
+  - Square thumbnail display with adjustable size slider (100px-400px)
+  - Photos grouped by month/year with date headers
+  - Timeline sidebar for quick navigation to specific dates
+- **Multi-Select Operations**: Select multiple photos for bulk actions:
+  - Add/remove from collections
+  - Delete multiple photos
+  - Set location for multiple photos at once
 - **Metadata Editing**: Edit and extend photo metadata including:
   - Date taken
   - GPS coordinates (latitude/longitude)
+  - Location name (place, restaurant, attraction)
   - Camera information (make, model, lens)
   - Camera settings (focal length, aperture, ISO, shutter speed)
   - Rating system (1-5 stars)
   - Custom notes
   - Custom metadata fields (key-value pairs)
-- **Map View**: Visualize photos with GPS coordinates on an interactive map using OpenStreetMap
-- **Collections**: Create and manage collections to organize photos (e.g., trips, events, restaurants)
+
+### Location Features
+- **Reverse Geocoding**: Look up address and place names from photo GPS coordinates
+- **Nearby Places Search**: Find restaurants, attractions, and POIs near photo location using OpenStreetMap data
+- **Set Location**: Manually set GPS coordinates and location name for photos (supports pasting from Google Maps)
+- **Open in Maps**: Quick link to view photo location in Google Maps
+
+### Map View
+- Visualize photos with GPS coordinates on an interactive map using OpenStreetMap
+- Click markers to preview photos and access details
+
+### Collections
+- Create and manage collections to organize photos (e.g., trips, events, restaurants)
+- Bulk add/remove photos from collections
+
+### WordPress Integration
+- **Publish to WordPress**: Create blog posts with photo galleries directly from the app
+- **Media Upload**: Automatically upload photos to WordPress media library with:
+  - Caption set to photo date
+  - Description set to location information
+- **Gutenberg Gallery**: Creates native WordPress Gallery blocks
+- **Post Options**:
+  - Title and content
+  - Categories and tags
+  - Featured image selection
+  - Draft/Publish status
+- **Custom Fields**: Support for Smart Custom Fields plugin (Lat/Lon fields)
+
+### Other Features
 - **EXIF Write-back**: Write metadata from the database back to photo files (JPEG only)
 - **Cross-Platform**: Works on Windows, macOS, and Linux
 
@@ -25,12 +62,15 @@ All technologies used are free and open source:
 - **Electron**: Desktop application framework
 - **React**: Frontend UI framework
 - **Vite**: Build tool and development server
-- **SQLite (better-sqlite3)**: Local database for metadata storage
+- **SQLite (sql.js)**: Local database for metadata storage (WebAssembly-based)
 - **exifr**: EXIF metadata reading
 - **piexifjs**: EXIF metadata writing
 - **Leaflet**: Open-source map library
 - **React-Leaflet**: React components for Leaflet maps
 - **OpenStreetMap**: Free map tiles
+- **Nominatim API**: Reverse geocoding (address lookup from coordinates)
+- **Overpass API**: Nearby places search (POIs from OpenStreetMap data)
+- **WordPress REST API**: Blog publishing integration
 
 ## Installation
 
@@ -91,8 +131,23 @@ This will create distributable packages in the `release` directory for your curr
 ### Viewing Photos
 
 - **Grid View**: Browse all photos in a grid layout
+  - Use the size slider to adjust thumbnail size
+  - Photos are grouped by month/year
+  - Use the timeline sidebar on the right to jump to specific dates
 - **Map View**: See photos with GPS coordinates plotted on an interactive map
 - Click any photo to open the detailed view
+
+### Multi-Select Operations
+
+1. Click "Select" button in the toolbar to enter selection mode
+2. Click photos to select/deselect them, or use "Select All"
+3. Use the selection toolbar to:
+   - **Add to Collection**: Add selected photos to a collection
+   - **Remove from Collection**: Remove from current collection
+   - **Set Location**: Set GPS coordinates for all selected photos
+   - **Publish to WP**: Publish selected photos to WordPress
+   - **Delete**: Remove selected photos from the database
+4. Click "Cancel" to exit selection mode
 
 ### Editing Metadata
 
@@ -132,7 +187,66 @@ Organize photos into collections:
 4. To add photos to a collection:
    - Open a photo in detail view
    - Check the collection(s) in the "Collections" section
+   - Or use multi-select to add multiple photos at once
 5. Click on a collection name to view only photos in that collection
+
+### Location Lookup
+
+For photos with GPS coordinates:
+
+1. Open a photo in detail view
+2. Click "Lookup Location" button
+3. The app will:
+   - Reverse geocode the coordinates to get the address
+   - Search for nearby places (restaurants, attractions, etc.)
+4. Select a place from the list to set as location name
+5. Click "Open in Maps" to view the location in Google Maps
+
+### Setting Location on Photos
+
+To set GPS coordinates on photos without location data:
+
+1. Enter selection mode and select photos
+2. Click "Set Location" in the toolbar
+3. Enter coordinates manually, or:
+   - Open Google Maps in browser
+   - Find and click on the location
+   - Copy the coordinates from the URL or info panel
+   - Click "Paste" or use the paste field in the dialog
+4. Optionally enter a location name
+5. Click "Set Location" to apply to all selected photos
+
+### WordPress Integration
+
+#### Initial Setup
+
+1. Click "WordPress" button in the header
+2. Enter your WordPress site details:
+   - **Site URL**: Your WordPress site URL (e.g., https://example.com)
+   - **Username**: Your WordPress username
+   - **Application Password**: Generate one in WordPress under Users → Profile → Application Passwords
+3. Click "Test Connection" to verify
+4. Click "Save Settings"
+
+#### Publishing Photos
+
+1. Select photos you want to publish (use multi-select)
+2. Click "Publish to WP" in the selection toolbar
+3. Fill in the post details:
+   - **Title**: Post title (required)
+   - **Content**: Post content/description
+   - **Categories**: Select from your WordPress categories
+   - **Tags**: Add tags (type and press Enter)
+   - **Featured Image**: Click a thumbnail to set as featured
+   - **Lat/Lon**: Map coordinates for Smart Custom Fields plugin
+   - **Status**: Draft or Publish
+4. Click "Publish Now" or "Save as Draft"
+
+The app will:
+- Upload all photos to your WordPress media library
+- Set caption to photo date, description to location info
+- Create a post with a Gutenberg Gallery block
+- Set the featured image and custom fields
 
 ### Writing Metadata to EXIF
 
@@ -165,10 +279,20 @@ All metadata is stored in a SQLite database located at:
 - **Linux**: `~/.config/memorable/memorable.db`
 
 The database contains:
-- Photo metadata (file paths, EXIF data, ratings, notes)
+- Photo metadata (file paths, EXIF data, ratings, notes, location names)
 - Collections
 - Photo-collection relationships
 - Custom metadata fields
+
+### WordPress Settings
+
+WordPress connection settings are stored at:
+
+- **Windows**: `%APPDATA%/memorable/wp-settings.json`
+- **macOS**: `~/Library/Application Support/memorable/wp-settings.json`
+- **Linux**: `~/.config/memorable/wp-settings.json`
+
+**Note**: The application password is stored in plain text. Keep your system secure.
 
 ### Photo Files
 
@@ -218,10 +342,12 @@ memorable/
 │   ├── main.jsx          # React entry point
 │   ├── index.css         # Global styles
 │   └── components/
-│       ├── PhotoGrid.jsx     # Photo grid view
-│       ├── PhotoDetail.jsx   # Photo detail/editor
-│       ├── MapView.jsx       # Map visualization
-│       └── Collections.jsx   # Collection sidebar
+│       ├── PhotoGrid.jsx          # Photo grid with date navigation & multi-select
+│       ├── PhotoDetail.jsx        # Photo detail/editor with location lookup
+│       ├── MapView.jsx            # Map visualization
+│       ├── Collections.jsx        # Collection sidebar
+│       ├── WordPressSettings.jsx  # WordPress connection settings
+│       └── WordPressPublish.jsx   # WordPress publishing dialog
 ├── package.json
 ├── vite.config.js
 └── index.html
@@ -292,8 +418,11 @@ Built with:
 - [Electron](https://www.electronjs.org/)
 - [React](https://react.dev/)
 - [Vite](https://vitejs.dev/)
-- [better-sqlite3](https://github.com/WiseLibs/better-sqlite3)
+- [sql.js](https://github.com/sql-js/sql.js) - SQLite compiled to WebAssembly
 - [exifr](https://github.com/MikeKovarik/exifr)
 - [piexifjs](https://github.com/hMatoba/piexifjs)
 - [Leaflet](https://leafletjs.com/)
 - [OpenStreetMap](https://www.openstreetmap.org/)
+- [Nominatim](https://nominatim.org/) - Reverse geocoding service
+- [Overpass API](https://overpass-api.de/) - OpenStreetMap data queries
+- [WordPress REST API](https://developer.wordpress.org/rest-api/)
