@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 
-function PhotoDetail({ photo, collections, onClose, onUpdate, onDelete, onAddToCollection, onRemoveFromCollection }) {
+function PhotoDetail({ photo, collections, onClose, onUpdate, onDelete, onAddToCollection, onRemoveFromCollection, onCreateLocation }) {
   const [photoData, setPhotoData] = useState(null);
   const [editing, setEditing] = useState(false);
   const [formData, setFormData] = useState({});
@@ -15,6 +15,18 @@ function PhotoDetail({ photo, collections, onClose, onUpdate, onDelete, onAddToC
   const [reverseGeocodeResult, setReverseGeocodeResult] = useState(null);
   const [nearbyPlaces, setNearbyPlaces] = useState([]);
   const [searchRadius, setSearchRadius] = useState(100);
+
+  // Create location state
+  const [showCreateLocation, setShowCreateLocation] = useState(false);
+  const [newLocationData, setNewLocationData] = useState({
+    name: '',
+    latitude: '',
+    longitude: '',
+    address: '',
+    category: '',
+    rating: 0,
+    notes: ''
+  });
 
   useEffect(() => {
     loadPhotoData();
@@ -149,6 +161,106 @@ function PhotoDetail({ photo, collections, onClose, onUpdate, onDelete, onAddToC
   const handleOpenInMaps = async () => {
     if (photo.latitude && photo.longitude) {
       await window.electron.openInMaps(photo.latitude, photo.longitude);
+    }
+  };
+
+  // Create location functions
+  const handleOpenCreateLocation = async () => {
+    if (!photo.latitude || !photo.longitude) return;
+
+    // Pre-fill with photo data
+    setNewLocationData({
+      name: photo.location_name || '',
+      latitude: photo.latitude.toString(),
+      longitude: photo.longitude.toString(),
+      address: '',
+      category: '',
+      rating: 0,
+      notes: ''
+    });
+    setShowCreateLocation(true);
+    setNearbyPlaces([]);
+    setReverseGeocodeResult(null);
+    setLocationLoading(true);
+
+    try {
+      // Get reverse geocode result
+      const geocodeResult = await window.electron.reverseGeocode(photo.latitude, photo.longitude);
+      if (geocodeResult.success) {
+        setReverseGeocodeResult(geocodeResult);
+        setNewLocationData(prev => ({ ...prev, address: geocodeResult.address }));
+      }
+
+      // Get nearby places
+      const placesResult = await window.electron.searchNearbyPlaces(photo.latitude, photo.longitude, searchRadius);
+      if (placesResult.success) {
+        setNearbyPlaces(placesResult.places);
+      }
+    } catch (error) {
+      console.error('Location lookup error:', error);
+    } finally {
+      setLocationLoading(false);
+    }
+  };
+
+  const handleSearchNearbyForCreate = async (newRadius) => {
+    setSearchRadius(newRadius);
+    setLocationLoading(true);
+
+    try {
+      const placesResult = await window.electron.searchNearbyPlaces(photo.latitude, photo.longitude, newRadius);
+      if (placesResult.success) {
+        setNearbyPlaces(placesResult.places);
+      }
+    } catch (error) {
+      console.error('Location search error:', error);
+    } finally {
+      setLocationLoading(false);
+    }
+  };
+
+  const handleSelectPlaceForCreate = (place) => {
+    setNewLocationData(prev => ({
+      ...prev,
+      name: place.name || place,
+      category: typeof place === 'object' ? mapPlaceCategory(place.category) : prev.category
+    }));
+  };
+
+  const mapPlaceCategory = (category) => {
+    const mapping = {
+      'Food & Drink': 'restaurant',
+      'Tourism': 'attraction',
+      'Historic': 'museum',
+      'Leisure': 'park',
+      'Shop': 'shop',
+      'Amenity': 'other'
+    };
+    return mapping[category] || 'other';
+  };
+
+  const handleCreateLocationSubmit = async () => {
+    if (!newLocationData.name.trim()) {
+      alert('Please enter a location name');
+      return;
+    }
+
+    await onCreateLocation({
+      ...newLocationData,
+      latitude: parseFloat(newLocationData.latitude),
+      longitude: parseFloat(newLocationData.longitude),
+      rating: parseInt(newLocationData.rating) || 0
+    });
+
+    setShowCreateLocation(false);
+    alert('Location created successfully!');
+  };
+
+  const handleGoogleSearch = () => {
+    if (photo.latitude && photo.longitude) {
+      // Open Google search for the coordinates - will help find the place name
+      const query = encodeURIComponent(`${photo.latitude}, ${photo.longitude}`);
+      window.open(`https://www.google.com/search?q=${query}`, '_blank');
     }
   };
 
@@ -497,6 +609,11 @@ function PhotoDetail({ photo, collections, onClose, onUpdate, onDelete, onAddToC
           <div className="detail-section">
             <h3>Actions</h3>
             <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
+              {photo.latitude && photo.longitude && onCreateLocation && (
+                <button onClick={handleOpenCreateLocation} style={{ width: '100%' }}>
+                  Create Location from Photo
+                </button>
+              )}
               <button onClick={handleWriteToExif} style={{ width: '100%' }}>
                 Write Metadata to EXIF
               </button>
@@ -604,6 +721,187 @@ function PhotoDetail({ photo, collections, onClose, onUpdate, onDelete, onAddToC
                     Save
                   </button>
                 </div>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* Create Location Modal */}
+        {showCreateLocation && (
+          <div className="location-picker-overlay" onClick={() => setShowCreateLocation(false)}>
+            <div className="location-picker" onClick={(e) => e.stopPropagation()} style={{ maxWidth: '600px' }}>
+              <div className="location-picker-header">
+                <h3>Create Location from Photo</h3>
+                <button className="secondary small" onClick={() => setShowCreateLocation(false)}>Close</button>
+              </div>
+
+              {/* Location Name Input */}
+              <div className="location-section">
+                <div className="location-section-title">Location Name *</div>
+                <input
+                  type="text"
+                  value={newLocationData.name}
+                  onChange={(e) => setNewLocationData(prev => ({ ...prev, name: e.target.value }))}
+                  placeholder="Enter location name..."
+                  style={{ width: '100%' }}
+                />
+              </div>
+
+              {/* Coordinates (pre-filled, readonly display) */}
+              <div className="location-section">
+                <div className="location-section-title">Coordinates (from photo)</div>
+                <div style={{ display: 'flex', gap: '0.5rem', alignItems: 'center' }}>
+                  <span style={{ color: '#6b7280', fontSize: '0.875rem' }}>
+                    {newLocationData.latitude}, {newLocationData.longitude}
+                  </span>
+                  <button className="small secondary" onClick={handleGoogleSearch}>
+                    Search Google
+                  </button>
+                  <button className="small secondary" onClick={handleOpenInMaps}>
+                    Open Maps
+                  </button>
+                </div>
+              </div>
+
+              {/* Category */}
+              <div className="location-section">
+                <div className="location-section-title">Category</div>
+                <select
+                  value={newLocationData.category}
+                  onChange={(e) => setNewLocationData(prev => ({ ...prev, category: e.target.value }))}
+                  style={{ width: '100%' }}
+                >
+                  <option value="">Select category...</option>
+                  <option value="restaurant">🍽️ Restaurant</option>
+                  <option value="cafe">☕ Cafe</option>
+                  <option value="bar">🍺 Bar</option>
+                  <option value="hotel">🏨 Hotel</option>
+                  <option value="attraction">🎭 Attraction</option>
+                  <option value="museum">🏛️ Museum</option>
+                  <option value="park">🌳 Park</option>
+                  <option value="shop">🛍️ Shop</option>
+                  <option value="other">📍 Other</option>
+                </select>
+              </div>
+
+              {/* Rating */}
+              <div className="location-section">
+                <div className="location-section-title">Rating</div>
+                <div style={{ display: 'flex', gap: '0.25rem' }}>
+                  {[1, 2, 3, 4, 5].map(star => (
+                    <button
+                      key={star}
+                      type="button"
+                      onClick={() => setNewLocationData(prev => ({ ...prev, rating: star }))}
+                      style={{
+                        background: 'none',
+                        border: 'none',
+                        cursor: 'pointer',
+                        fontSize: '1.5rem',
+                        color: star <= newLocationData.rating ? '#f59e0b' : '#d1d5db',
+                        padding: '0'
+                      }}
+                    >
+                      ★
+                    </button>
+                  ))}
+                  {newLocationData.rating > 0 && (
+                    <button
+                      className="small secondary"
+                      onClick={() => setNewLocationData(prev => ({ ...prev, rating: 0 }))}
+                      style={{ marginLeft: '0.5rem' }}
+                    >
+                      Clear
+                    </button>
+                  )}
+                </div>
+              </div>
+
+              {/* Address */}
+              <div className="location-section">
+                <div className="location-section-title">Address</div>
+                <input
+                  type="text"
+                  value={newLocationData.address}
+                  onChange={(e) => setNewLocationData(prev => ({ ...prev, address: e.target.value }))}
+                  placeholder="Address (auto-filled from lookup)"
+                  style={{ width: '100%' }}
+                />
+              </div>
+
+              {/* Notes */}
+              <div className="location-section">
+                <div className="location-section-title">Notes</div>
+                <textarea
+                  value={newLocationData.notes}
+                  onChange={(e) => setNewLocationData(prev => ({ ...prev, notes: e.target.value }))}
+                  placeholder="Add notes..."
+                  rows={2}
+                  style={{ width: '100%' }}
+                />
+              </div>
+
+              {/* Search Radius Control */}
+              <div className="location-section">
+                <div className="location-section-title">
+                  Find Nearby Places (Radius: {searchRadius}m)
+                </div>
+                <div className="radius-buttons">
+                  {[50, 100, 200, 500, 1000].map(radius => (
+                    <button
+                      key={radius}
+                      className={`small ${searchRadius === radius ? '' : 'secondary'}`}
+                      onClick={() => handleSearchNearbyForCreate(radius)}
+                    >
+                      {radius}m
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+              {/* Nearby Places */}
+              <div className="location-section">
+                <div className="location-section-title">
+                  Click to use name {nearbyPlaces.length > 0 && `(${nearbyPlaces.length} found)`}
+                </div>
+
+                {locationLoading ? (
+                  <div className="location-loading">Searching...</div>
+                ) : nearbyPlaces.length === 0 ? (
+                  <div className="location-empty">No places found. Try increasing search radius or use Google Search.</div>
+                ) : (
+                  <div className="location-results" style={{ maxHeight: '150px', overflowY: 'auto' }}>
+                    {nearbyPlaces.map((place) => (
+                      <div
+                        key={place.id}
+                        className="location-result-item clickable"
+                        onClick={() => handleSelectPlaceForCreate(place)}
+                      >
+                        <span className="location-icon">{getCategoryIcon(place.category)}</span>
+                        <div className="location-result-info">
+                          <div className="location-result-name">{place.name}</div>
+                          <div className="location-result-type">
+                            {place.category} • {formatDistance(place.distance)}
+                          </div>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+
+              {/* Create Button */}
+              <div style={{ marginTop: '1rem', display: 'flex', gap: '0.5rem' }}>
+                <button
+                  onClick={handleCreateLocationSubmit}
+                  disabled={!newLocationData.name.trim()}
+                  style={{ flex: 1 }}
+                >
+                  Create Location
+                </button>
+                <button className="secondary" onClick={() => setShowCreateLocation(false)}>
+                  Cancel
+                </button>
               </div>
             </div>
           </div>

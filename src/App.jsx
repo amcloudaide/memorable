@@ -223,7 +223,6 @@ function App() {
               locations={locations}
               selectedLocation={selectedLocation}
               onSelectLocation={handleSelectLocation}
-              onCreateLocation={handleCreateLocation}
               onDeleteLocation={handleDeleteLocation}
             />
           </div>
@@ -286,6 +285,7 @@ function App() {
           onDelete={handleDeletePhoto}
           onAddToCollection={handleAddToCollection}
           onRemoveFromCollection={handleRemoveFromCollection}
+          onCreateLocation={handleCreateLocation}
         />
       )}
 
