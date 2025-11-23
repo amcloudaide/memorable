@@ -939,7 +939,9 @@ ${nestedImages}
 
     // Update custom fields using Smart Custom Fields format
     // SCF stores fields in post meta
+    let customFieldsResult = { attempted: false, success: false, error: null };
     if (customFields && (customFields.lat || customFields.lon)) {
+      customFieldsResult.attempted = true;
       try {
         // Use the WordPress meta endpoint
         const metaBody = {};
@@ -947,12 +949,25 @@ ${nestedImages}
         if (customFields.lon) metaBody['lon'] = customFields.lon.toString();
 
         await wpApiRequest(`/posts/${post.id}`, 'POST', { meta: metaBody });
+
+        // Verify the fields were actually set by fetching the post
+        const updatedPost = await wpApiRequest(`/posts/${post.id}?context=edit`);
+        const metaSet = updatedPost.meta &&
+          (updatedPost.meta.lat === metaBody.lat || updatedPost.meta.lon === metaBody.lon);
+
+        if (metaSet) {
+          customFieldsResult.success = true;
+        } else {
+          customFieldsResult.success = false;
+          customFieldsResult.error = 'Fields not saved. Ensure meta fields are registered with show_in_rest in WordPress.';
+        }
       } catch (e) {
         console.error('Failed to set custom fields:', e);
+        customFieldsResult.error = e.message;
       }
     }
 
-    return { success: true, post };
+    return { success: true, post, customFieldsResult };
   } catch (error) {
     return { success: false, error: error.message };
   }

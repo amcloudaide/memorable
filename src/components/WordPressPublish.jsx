@@ -183,11 +183,23 @@ function WordPressPublish({ photos, onClose, onSuccess }) {
       const result = await window.electron.wpCreatePost(postData);
 
       if (result.success) {
-        setProgress({ current: photos.length, total: photos.length, status: 'Published successfully!' });
+        // Check custom fields result
+        let statusMsg = 'Published successfully!';
+        if (result.customFieldsResult?.attempted) {
+          if (result.customFieldsResult.success) {
+            statusMsg = 'Published successfully! Lat/Lon fields set.';
+          } else {
+            statusMsg = `Published, but Lat/Lon fields failed: ${result.customFieldsResult.error || 'Unknown error'}`;
+          }
+        }
+        setProgress({ current: photos.length, total: photos.length, status: statusMsg });
+
+        // Show warning if custom fields failed but post succeeded
+        const delay = result.customFieldsResult?.attempted && !result.customFieldsResult?.success ? 4000 : 1500;
         setTimeout(() => {
           if (onSuccess) onSuccess(result.post);
           onClose();
-        }, 1500);
+        }, delay);
       } else {
         throw new Error(result.error);
       }
