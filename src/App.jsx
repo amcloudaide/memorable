@@ -3,13 +3,18 @@ import PhotoGrid from './components/PhotoGrid';
 import PhotoDetail from './components/PhotoDetail';
 import MapView from './components/MapView';
 import Collections from './components/Collections';
+import Locations from './components/Locations';
+import LocationDetail from './components/LocationDetail';
+import LocationsMapView from './components/LocationsMapView';
 import WordPressSettings from './components/WordPressSettings';
 
 function App() {
   const [photos, setPhotos] = useState([]);
   const [collections, setCollections] = useState([]);
+  const [locations, setLocations] = useState([]);
   const [selectedPhoto, setSelectedPhoto] = useState(null);
-  const [activeTab, setActiveTab] = useState('grid'); // grid, map, collections
+  const [selectedLocation, setSelectedLocation] = useState(null);
+  const [activeTab, setActiveTab] = useState('grid'); // grid, map, locations
   const [selectedCollection, setSelectedCollection] = useState(null);
   const [loading, setLoading] = useState(true);
   const [showWpSettings, setShowWpSettings] = useState(false);
@@ -17,6 +22,7 @@ function App() {
   useEffect(() => {
     loadPhotos();
     loadCollections();
+    loadLocations();
   }, []);
 
   const loadPhotos = async () => {
@@ -36,6 +42,15 @@ function App() {
       setCollections(allCollections);
     } catch (error) {
       console.error('Error loading collections:', error);
+    }
+  };
+
+  const loadLocations = async () => {
+    try {
+      const allLocations = await window.electron.getLocations();
+      setLocations(allLocations);
+    } catch (error) {
+      console.error('Error loading locations:', error);
     }
   };
 
@@ -125,6 +140,46 @@ function App() {
     }
   };
 
+  // Location handlers
+  const handleCreateLocation = async (locationData) => {
+    try {
+      await window.electron.createLocation(locationData);
+      await loadLocations();
+    } catch (error) {
+      console.error('Error creating location:', error);
+    }
+  };
+
+  const handleUpdateLocation = async (locationId, updates) => {
+    try {
+      await window.electron.updateLocation(locationId, updates);
+      await loadLocations();
+      // Update selected location if it's the one being updated
+      if (selectedLocation && selectedLocation.id === locationId) {
+        const updatedLocation = await window.electron.getLocation(locationId);
+        setSelectedLocation(updatedLocation);
+      }
+    } catch (error) {
+      console.error('Error updating location:', error);
+    }
+  };
+
+  const handleDeleteLocation = async (locationId) => {
+    try {
+      await window.electron.deleteLocation(locationId);
+      await loadLocations();
+      if (selectedLocation?.id === locationId) {
+        setSelectedLocation(null);
+      }
+    } catch (error) {
+      console.error('Error deleting location:', error);
+    }
+  };
+
+  const handleSelectLocation = (location) => {
+    setSelectedLocation(location);
+  };
+
   const displayPhotos = selectedCollection
     ? photos.filter(async (photo) => {
         const photoCollections = await window.electron.getPhotoCollections(photo.id);
@@ -133,6 +188,7 @@ function App() {
     : photos;
 
   const photosWithLocation = photos.filter(p => p.latitude && p.longitude);
+  const locationsWithCoords = locations.filter(l => l.latitude && l.longitude);
 
   if (loading) {
     return (
@@ -161,6 +217,16 @@ function App() {
             onCreateCollection={handleCreateCollection}
             onDeleteCollection={handleDeleteCollection}
           />
+
+          <div style={{ marginTop: '1.5rem', borderTop: '1px solid #e5e7eb', paddingTop: '1rem' }}>
+            <Locations
+              locations={locations}
+              selectedLocation={selectedLocation}
+              onSelectLocation={handleSelectLocation}
+              onCreateLocation={handleCreateLocation}
+              onDeleteLocation={handleDeleteLocation}
+            />
+          </div>
         </aside>
 
         <main className="main-content">
@@ -175,7 +241,13 @@ function App() {
               className={`nav-tab ${activeTab === 'map' ? 'active' : ''}`}
               onClick={() => setActiveTab('map')}
             >
-              Map ({photosWithLocation.length})
+              Photo Map ({photosWithLocation.length})
+            </button>
+            <button
+              className={`nav-tab ${activeTab === 'locations' ? 'active' : ''}`}
+              onClick={() => setActiveTab('locations')}
+            >
+              Locations ({locationsWithCoords.length})
             </button>
           </nav>
 
@@ -195,6 +267,13 @@ function App() {
               onPhotoClick={handlePhotoClick}
             />
           )}
+
+          {activeTab === 'locations' && (
+            <LocationsMapView
+              locations={locations}
+              onLocationClick={handleSelectLocation}
+            />
+          )}
         </main>
       </div>
 
@@ -212,6 +291,15 @@ function App() {
 
       {showWpSettings && (
         <WordPressSettings onClose={() => setShowWpSettings(false)} />
+      )}
+
+      {selectedLocation && (
+        <LocationDetail
+          location={selectedLocation}
+          onClose={() => setSelectedLocation(null)}
+          onUpdate={handleUpdateLocation}
+          onDelete={handleDeleteLocation}
+        />
       )}
     </div>
   );

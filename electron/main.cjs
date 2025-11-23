@@ -105,6 +105,20 @@ async function initDatabase() {
 
     CREATE INDEX IF NOT EXISTS idx_photos_location ON photos(latitude, longitude);
     CREATE INDEX IF NOT EXISTS idx_photos_date ON photos(date_taken);
+
+    CREATE TABLE IF NOT EXISTS locations (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      name TEXT NOT NULL,
+      latitude REAL,
+      longitude REAL,
+      address TEXT,
+      category TEXT,
+      rating INTEGER DEFAULT 0,
+      notes TEXT,
+      created_date TEXT DEFAULT CURRENT_TIMESTAMP
+    );
+
+    CREATE INDEX IF NOT EXISTS idx_locations_coords ON locations(latitude, longitude);
   `);
 
   // Add location_name column if it doesn't exist (migration for existing databases)
@@ -437,6 +451,55 @@ ipcMain.handle('set-custom-metadata', (event, photoId, key, value) => {
 ipcMain.handle('get-custom-metadata', (event, photoId) => {
   const result = db.exec('SELECT key, value FROM custom_metadata WHERE photo_id = ?', [photoId]);
   return sqlResultToObjects(result);
+});
+
+// ==================== Locations ====================
+
+// Create location
+ipcMain.handle('create-location', (event, locationData) => {
+  const { name, latitude, longitude, address, category, rating, notes } = locationData;
+  db.run(`
+    INSERT INTO locations (name, latitude, longitude, address, category, rating, notes)
+    VALUES (?, ?, ?, ?, ?, ?, ?)
+  `, [name, latitude || null, longitude || null, address || null, category || null, rating || 0, notes || null]);
+
+  const result = db.exec('SELECT last_insert_rowid() as id');
+  const id = result[0].values[0][0];
+  saveDatabase();
+  return { id, ...locationData };
+});
+
+// Get all locations
+ipcMain.handle('get-locations', () => {
+  const result = db.exec('SELECT * FROM locations ORDER BY name');
+  return sqlResultToObjects(result);
+});
+
+// Get location by ID
+ipcMain.handle('get-location', (event, id) => {
+  const result = db.exec('SELECT * FROM locations WHERE id = ?', [id]);
+  return sqlResultToObject(result);
+});
+
+// Update location
+ipcMain.handle('update-location', (event, id, updates) => {
+  const allowedFields = ['name', 'latitude', 'longitude', 'address', 'category', 'rating', 'notes'];
+  const fields = Object.keys(updates).filter(key => allowedFields.includes(key));
+  if (fields.length === 0) return false;
+
+  const setClause = fields.map(field => `${field} = ?`).join(', ');
+  const values = fields.map(field => updates[field]);
+
+  db.run(`UPDATE locations SET ${setClause} WHERE id = ?`, [...values, id]);
+  saveDatabase();
+  return true;
+});
+
+// Delete location
+ipcMain.handle('delete-location', (event, id) => {
+  db.run('DELETE FROM locations WHERE id = ?', [id]);
+  saveDatabase();
+  return true;
 });
 
 // Read file as base64 for display

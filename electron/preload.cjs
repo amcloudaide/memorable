@@ -29,6 +29,13 @@ contextBridge.exposeInMainWorld('electron', {
   setCustomMetadata: (photoId, key, value) => ipcRenderer.invoke('set-custom-metadata', photoId, key, value),
   getCustomMetadata: (photoId) => ipcRenderer.invoke('get-custom-metadata', photoId),
 
+  // Location (places) operations
+  createLocation: (locationData) => ipcRenderer.invoke('create-location', locationData),
+  getLocations: () => ipcRenderer.invoke('get-locations'),
+  getLocation: (id) => ipcRenderer.invoke('get-location', id),
+  updateLocation: (id, updates) => ipcRenderer.invoke('update-location', id, updates),
+  deleteLocation: (id) => ipcRenderer.invoke('delete-location', id),
+
   // EXIF operations
   writeMetadataToExif: (photoId) => ipcRenderer.invoke('write-metadata-to-exif', photoId),
 

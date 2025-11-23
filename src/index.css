@@ -1274,6 +1274,27 @@ select:focus {
   width: 100%;
 }
 
+.map-empty {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  height: 100%;
+  color: var(--text-light);
+  text-align: center;
+  padding: 2rem;
+}
+
+.map-empty p {
+  margin: 0.5rem 0;
+}
+
+/* Location marker icons */
+.location-marker-icon {
+  background: transparent;
+  border: none;
+}
+
 /* Modal */
 .modal-overlay {
   position: fixed;
