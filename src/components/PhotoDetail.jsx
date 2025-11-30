@@ -18,6 +18,7 @@ function PhotoDetail({ photo, collections, onClose, onUpdate, onDelete, onAddToC
 
   // Create location state
   const [showCreateLocation, setShowCreateLocation] = useState(false);
+  const [nearbyPlacesExpanded, setNearbyPlacesExpanded] = useState(false);
   const [newLocationData, setNewLocationData] = useState({
     name: '',
     latitude: '',
@@ -729,169 +730,203 @@ function PhotoDetail({ photo, collections, onClose, onUpdate, onDelete, onAddToC
         {/* Create Location Modal */}
         {showCreateLocation && (
           <div className="location-picker-overlay" onClick={() => setShowCreateLocation(false)}>
-            <div className="location-picker" onClick={(e) => e.stopPropagation()} style={{ maxWidth: '600px' }}>
+            <div className="location-picker" onClick={(e) => e.stopPropagation()} style={{ maxWidth: '600px', maxHeight: '90vh', display: 'flex', flexDirection: 'column' }}>
               <div className="location-picker-header">
                 <h3>Create Location from Photo</h3>
                 <button className="secondary small" onClick={() => setShowCreateLocation(false)}>Close</button>
               </div>
 
-              {/* Location Name Input */}
-              <div className="location-section">
-                <div className="location-section-title">Location Name *</div>
-                <input
-                  type="text"
-                  value={newLocationData.name}
-                  onChange={(e) => setNewLocationData(prev => ({ ...prev, name: e.target.value }))}
-                  placeholder="Enter location name..."
-                  style={{ width: '100%' }}
-                />
-              </div>
-
-              {/* Coordinates (pre-filled, readonly display) */}
-              <div className="location-section">
-                <div className="location-section-title">Coordinates (from photo)</div>
-                <div style={{ display: 'flex', gap: '0.5rem', alignItems: 'center' }}>
-                  <span style={{ color: '#6b7280', fontSize: '0.875rem' }}>
-                    {newLocationData.latitude}, {newLocationData.longitude}
-                  </span>
-                  <button className="small secondary" onClick={handleGoogleSearch}>
-                    Search Google
-                  </button>
-                  <button className="small secondary" onClick={handleOpenInMaps}>
-                    Open Maps
-                  </button>
+              {/* Scrollable Content */}
+              <div style={{ flex: 1, overflowY: 'auto' }}>
+                {/* Location Name Input */}
+                <div className="location-section">
+                  <div className="location-section-title">Location Name *</div>
+                  <input
+                    type="text"
+                    value={newLocationData.name}
+                    onChange={(e) => setNewLocationData(prev => ({ ...prev, name: e.target.value }))}
+                    placeholder="Enter location name..."
+                    style={{ width: '100%' }}
+                  />
                 </div>
-              </div>
 
-              {/* Category */}
-              <div className="location-section">
-                <div className="location-section-title">Category</div>
-                <select
-                  value={newLocationData.category}
-                  onChange={(e) => setNewLocationData(prev => ({ ...prev, category: e.target.value }))}
-                  style={{ width: '100%' }}
-                >
-                  <option value="">Select category...</option>
-                  <option value="restaurant">🍽️ Restaurant</option>
-                  <option value="cafe">☕ Cafe</option>
-                  <option value="bar">🍺 Bar</option>
-                  <option value="hotel">🏨 Hotel</option>
-                  <option value="attraction">🎭 Attraction</option>
-                  <option value="museum">🏛️ Museum</option>
-                  <option value="park">🌳 Park</option>
-                  <option value="shop">🛍️ Shop</option>
-                  <option value="other">📍 Other</option>
-                </select>
-              </div>
+                {/* Coordinates (pre-filled, readonly display) */}
+                <div className="location-section">
+                  <div className="location-section-title">Coordinates (from photo)</div>
+                  <div style={{ display: 'flex', gap: '0.5rem', alignItems: 'center', flexWrap: 'wrap' }}>
+                    <span style={{ color: '#6b7280', fontSize: '0.875rem' }}>
+                      {newLocationData.latitude}, {newLocationData.longitude}
+                    </span>
+                    <button className="small secondary" onClick={handleGoogleSearch}>
+                      Search Google
+                    </button>
+                    <button className="small secondary" onClick={handleOpenInMaps}>
+                      Open Maps
+                    </button>
+                  </div>
+                </div>
 
-              {/* Rating */}
-              <div className="location-section">
-                <div className="location-section-title">Rating</div>
-                <div style={{ display: 'flex', gap: '0.25rem' }}>
-                  {[1, 2, 3, 4, 5].map(star => (
-                    <button
-                      key={star}
-                      type="button"
-                      onClick={() => setNewLocationData(prev => ({ ...prev, rating: star }))}
-                      style={{
-                        background: 'none',
-                        border: 'none',
-                        cursor: 'pointer',
-                        fontSize: '1.5rem',
-                        color: star <= newLocationData.rating ? '#f59e0b' : '#d1d5db',
-                        padding: '0'
-                      }}
-                    >
-                      ★
-                    </button>
-                  ))}
-                  {newLocationData.rating > 0 && (
-                    <button
-                      className="small secondary"
-                      onClick={() => setNewLocationData(prev => ({ ...prev, rating: 0 }))}
-                      style={{ marginLeft: '0.5rem' }}
-                    >
-                      Clear
-                    </button>
+                {/* Category */}
+                <div className="location-section">
+                  <div className="location-section-title">Category</div>
+                  <select
+                    value={newLocationData.category}
+                    onChange={(e) => setNewLocationData(prev => ({ ...prev, category: e.target.value }))}
+                    style={{ width: '100%' }}
+                  >
+                    <option value="">Select category...</option>
+                    <option value="restaurant">🍽️ Restaurant</option>
+                    <option value="cafe">☕ Cafe</option>
+                    <option value="bar">🍺 Bar</option>
+                    <option value="hotel">🏨 Hotel</option>
+                    <option value="attraction">🎭 Attraction</option>
+                    <option value="museum">🏛️ Museum</option>
+                    <option value="park">🌳 Park</option>
+                    <option value="shop">🛍️ Shop</option>
+                    <option value="other">📍 Other</option>
+                  </select>
+                </div>
+
+                {/* Rating */}
+                <div className="location-section">
+                  <div className="location-section-title">Rating</div>
+                  <div style={{ display: 'flex', gap: '0.25rem' }}>
+                    {[1, 2, 3, 4, 5].map(star => (
+                      <button
+                        key={star}
+                        type="button"
+                        onClick={() => setNewLocationData(prev => ({ ...prev, rating: star }))}
+                        style={{
+                          background: 'none',
+                          border: 'none',
+                          cursor: 'pointer',
+                          fontSize: '1.5rem',
+                          color: star <= newLocationData.rating ? '#f59e0b' : '#d1d5db',
+                          padding: '0'
+                        }}
+                      >
+                        ★
+                      </button>
+                    ))}
+                    {newLocationData.rating > 0 && (
+                      <button
+                        className="small secondary"
+                        onClick={() => setNewLocationData(prev => ({ ...prev, rating: 0 }))}
+                        style={{ marginLeft: '0.5rem' }}
+                      >
+                        Clear
+                      </button>
+                    )}
+                  </div>
+                </div>
+
+                {/* Address */}
+                <div className="location-section">
+                  <div className="location-section-title">Address</div>
+                  <input
+                    type="text"
+                    value={newLocationData.address}
+                    onChange={(e) => setNewLocationData(prev => ({ ...prev, address: e.target.value }))}
+                    placeholder="Address (auto-filled from lookup)"
+                    style={{ width: '100%' }}
+                  />
+                </div>
+
+                {/* Notes */}
+                <div className="location-section">
+                  <div className="location-section-title">Notes</div>
+                  <textarea
+                    value={newLocationData.notes}
+                    onChange={(e) => setNewLocationData(prev => ({ ...prev, notes: e.target.value }))}
+                    placeholder="Add notes..."
+                    rows={2}
+                    style={{ width: '100%' }}
+                  />
+                </div>
+
+                {/* Collapsible Find Nearby Places Section */}
+                <div className="location-section" style={{ borderBottom: 'none' }}>
+                  <div
+                    style={{
+                      display: 'flex',
+                      justifyContent: 'space-between',
+                      alignItems: 'center',
+                      cursor: 'pointer',
+                      userSelect: 'none'
+                    }}
+                    onClick={() => setNearbyPlacesExpanded(!nearbyPlacesExpanded)}
+                  >
+                    <div className="location-section-title" style={{ marginBottom: 0 }}>
+                      Find Nearby Places
+                    </div>
+                    <span style={{ fontSize: '1.25rem', color: '#6b7280' }}>
+                      {nearbyPlacesExpanded ? '▼' : '▶'}
+                    </span>
+                  </div>
+
+                  {nearbyPlacesExpanded && (
+                    <div style={{ marginTop: '0.75rem' }}>
+                      {/* Search Radius Control */}
+                      <div style={{ marginBottom: '1rem' }}>
+                        <div style={{ fontSize: '0.75rem', color: '#6b7280', marginBottom: '0.5rem' }}>
+                          Search Radius: {searchRadius}m
+                        </div>
+                        <div className="radius-buttons">
+                          {[50, 100, 200, 500, 1000].map(radius => (
+                            <button
+                              key={radius}
+                              className={`small ${searchRadius === radius ? '' : 'secondary'}`}
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                handleSearchNearbyForCreate(radius);
+                              }}
+                            >
+                              {radius}m
+                            </button>
+                          ))}
+                        </div>
+                      </div>
+
+                      {/* Nearby Places */}
+                      <div>
+                        <div style={{ fontSize: '0.75rem', color: '#6b7280', marginBottom: '0.5rem' }}>
+                          Click to use name {nearbyPlaces.length > 0 && `(${nearbyPlaces.length} found)`}
+                        </div>
+
+                        {locationLoading ? (
+                          <div className="location-loading">Searching...</div>
+                        ) : nearbyPlaces.length === 0 ? (
+                          <div className="location-empty">No places found. Try increasing search radius or use Google Search.</div>
+                        ) : (
+                          <div className="location-results" style={{ maxHeight: '150px', overflowY: 'auto' }}>
+                            {nearbyPlaces.map((place) => (
+                              <div
+                                key={place.id}
+                                className="location-result-item clickable"
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  handleSelectPlaceForCreate(place);
+                                }}
+                              >
+                                <span className="location-icon">{getCategoryIcon(place.category)}</span>
+                                <div className="location-result-info">
+                                  <div className="location-result-name">{place.name}</div>
+                                  <div className="location-result-type">
+                                    {place.category} • {formatDistance(place.distance)}
+                                  </div>
+                                </div>
+                              </div>
+                            ))}
+                          </div>
+                        )}
+                      </div>
+                    </div>
                   )}
                 </div>
               </div>
 
-              {/* Address */}
-              <div className="location-section">
-                <div className="location-section-title">Address</div>
-                <input
-                  type="text"
-                  value={newLocationData.address}
-                  onChange={(e) => setNewLocationData(prev => ({ ...prev, address: e.target.value }))}
-                  placeholder="Address (auto-filled from lookup)"
-                  style={{ width: '100%' }}
-                />
-              </div>
-
-              {/* Notes */}
-              <div className="location-section">
-                <div className="location-section-title">Notes</div>
-                <textarea
-                  value={newLocationData.notes}
-                  onChange={(e) => setNewLocationData(prev => ({ ...prev, notes: e.target.value }))}
-                  placeholder="Add notes..."
-                  rows={2}
-                  style={{ width: '100%' }}
-                />
-              </div>
-
-              {/* Search Radius Control */}
-              <div className="location-section">
-                <div className="location-section-title">
-                  Find Nearby Places (Radius: {searchRadius}m)
-                </div>
-                <div className="radius-buttons">
-                  {[50, 100, 200, 500, 1000].map(radius => (
-                    <button
-                      key={radius}
-                      className={`small ${searchRadius === radius ? '' : 'secondary'}`}
-                      onClick={() => handleSearchNearbyForCreate(radius)}
-                    >
-                      {radius}m
-                    </button>
-                  ))}
-                </div>
-              </div>
-
-              {/* Nearby Places */}
-              <div className="location-section">
-                <div className="location-section-title">
-                  Click to use name {nearbyPlaces.length > 0 && `(${nearbyPlaces.length} found)`}
-                </div>
-
-                {locationLoading ? (
-                  <div className="location-loading">Searching...</div>
-                ) : nearbyPlaces.length === 0 ? (
-                  <div className="location-empty">No places found. Try increasing search radius or use Google Search.</div>
-                ) : (
-                  <div className="location-results" style={{ maxHeight: '150px', overflowY: 'auto' }}>
-                    {nearbyPlaces.map((place) => (
-                      <div
-                        key={place.id}
-                        className="location-result-item clickable"
-                        onClick={() => handleSelectPlaceForCreate(place)}
-                      >
-                        <span className="location-icon">{getCategoryIcon(place.category)}</span>
-                        <div className="location-result-info">
-                          <div className="location-result-name">{place.name}</div>
-                          <div className="location-result-type">
-                            {place.category} • {formatDistance(place.distance)}
-                          </div>
-                        </div>
-                      </div>
-                    ))}
-                  </div>
-                )}
-              </div>
-
-              {/* Create Button */}
-              <div style={{ marginTop: '1rem', display: 'flex', gap: '0.5rem' }}>
+              {/* Fixed Footer with Create Button */}
+              <div style={{ padding: '1rem 1.5rem', borderTop: '1px solid var(--border)', background: '#f3f4f6', display: 'flex', gap: '0.5rem' }}>
                 <button
                   onClick={handleCreateLocationSubmit}
                   disabled={!newLocationData.name.trim()}
