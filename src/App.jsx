@@ -8,8 +8,8 @@ import LocationDetail from './components/LocationDetail';
 import LocationsMapView from './components/LocationsMapView';
 import WordPressSettings from './components/WordPressSettings';
 import InstagramSettings from './components/InstagramSettings';
-import kDriveSettings from './components/kDriveSettings';
-import kDriveImport from './components/kDriveImport';
+import KDriveSettings from './components/kDriveSettings';
+import KDriveImport from './components/kDriveImport';
 
 function App() {
   const [photos, setPhotos] = useState([]);
@@ -307,11 +307,11 @@ function App() {
       )}
 
       {showKDriveSettings && (
-        <kDriveSettings onClose={() => setShowKDriveSettings(false)} />
+        <KDriveSettings onClose={() => setShowKDriveSettings(false)} />
       )}
 
       {showKDriveImport && (
-        <kDriveImport
+        <KDriveImport
           onClose={() => setShowKDriveImport(false)}
           onImportComplete={() => {
             loadPhotos();
