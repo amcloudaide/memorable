@@ -123,9 +123,10 @@ function kDriveSettings({ onClose }) {
             <strong>How to find your kDrive ID:</strong>
             <ol style={{ marginTop: '0.5rem', paddingLeft: '1.25rem' }}>
               <li>Log in to your kDrive at <a href="https://www.infomaniak.com/goto/kdrive" target="_blank" rel="noopener noreferrer" style={{ color: 'var(--primary)' }}>www.infomaniak.com</a></li>
-              <li>Look at the URL or settings page</li>
-              <li>The Drive ID is the number in the URL</li>
-              <li>Example: https://123456.connect.kdrive.infomaniak.com → Drive ID is "123456"</li>
+              <li>Look at the URL in your browser</li>
+              <li>The Drive ID is the <strong>second number</strong> in the URL</li>
+              <li>Example: https://ksuite.infomaniak.com/1423721/kdrive/app/drive/<strong>123456</strong>/files/93790</li>
+              <li>In this example, the Drive ID is "<strong>123456</strong>" (not 1423721)</li>
             </ol>
           </div>
         </div>

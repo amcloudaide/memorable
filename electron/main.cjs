@@ -1333,26 +1333,27 @@ ipcMain.handle('kdrive-import-photo', async (event, filepath) => {
   try {
     const client = getKDriveClient();
 
-    // Download the file to a temporary location
-    const tempDir = app.getPath('temp');
+    // Create a permanent directory for kDrive photos
+    const kDrivePhotosDir = path.join(app.getPath('userData'), 'kdrive-photos');
+    if (!fsSync.existsSync(kDrivePhotosDir)) {
+      fsSync.mkdirSync(kDrivePhotosDir, { recursive: true });
+    }
+
+    // Create a unique filename to avoid conflicts
     const fileName = path.basename(filepath);
-    const tempFilePath = path.join(tempDir, `kdrive_${Date.now()}_${fileName}`);
+    const timestamp = Date.now();
+    const uniqueFileName = `${timestamp}_${fileName}`;
+    const localFilePath = path.join(kDrivePhotosDir, uniqueFileName);
 
     console.log('Downloading from kDrive:', filepath);
     const fileBuffer = await client.getFileContents(filepath);
-    fsSync.writeFileSync(tempFilePath, fileBuffer);
+    fsSync.writeFileSync(localFilePath, fileBuffer);
 
-    console.log('Saved to temp:', tempFilePath);
+    console.log('Saved permanently to:', localFilePath);
 
     // Now import this file using the existing photo import logic
-    const photoData = await importPhoto(tempFilePath);
-
-    // Clean up temp file
-    try {
-      fsSync.unlinkSync(tempFilePath);
-    } catch (e) {
-      console.error('Failed to delete temp file:', e);
-    }
+    // The file will remain at localFilePath for future access
+    const photoData = await importPhoto(localFilePath);
 
     return { success: true, photo: photoData };
   } catch (error) {
