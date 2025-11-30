@@ -309,15 +309,15 @@ function PhotoDetail({ photo, collections, onClose, onUpdate, onDelete, onAddToC
           )}
         </div>
 
-        <div className="photo-detail-sidebar">
-          <div className="flex justify-between items-center mb-2">
-            <h2 style={{ fontSize: '1.25rem', fontWeight: '600' }}>{photo.file_name}</h2>
-            <button className="secondary small" onClick={onClose}>Close</button>
-          </div>
-
-          <div className="detail-section">
-            <div className="flex justify-between items-center mb-1">
-              <h3>Metadata</h3>
+        <div className="photo-detail-sidebar" style={{ display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
+          {/* Fixed Header */}
+          <div style={{ padding: '1.5rem', borderBottom: '1px solid var(--border)', flexShrink: 0 }}>
+            <div className="flex justify-between items-center mb-2">
+              <h2 style={{ fontSize: '1.25rem', fontWeight: '600' }}>{photo.file_name}</h2>
+              <button className="secondary small" onClick={onClose}>Close</button>
+            </div>
+            <div className="flex justify-between items-center">
+              <h3 style={{ fontSize: '0.875rem', fontWeight: '600', color: 'var(--text-light)', margin: 0 }}>Metadata</h3>
               {!editing ? (
                 <button className="small" onClick={() => setEditing(true)}>Edit</button>
               ) : (
@@ -327,6 +327,11 @@ function PhotoDetail({ photo, collections, onClose, onUpdate, onDelete, onAddToC
                 </div>
               )}
             </div>
+          </div>
+
+          {/* Scrollable Content */}
+          <div style={{ flex: 1, overflowY: 'auto', padding: '1.5rem' }}>
+            <div className="detail-section" style={{ marginTop: 0 }}>
 
             <div className="metadata-grid">
               <div className="metadata-item">
@@ -607,8 +612,11 @@ function PhotoDetail({ photo, collections, onClose, onUpdate, onDelete, onAddToC
             </div>
           </div>
 
-          <div className="detail-section">
-            <h3>Actions</h3>
+          </div>
+
+          {/* Fixed Footer - Actions */}
+          <div style={{ padding: '1rem 1.5rem', borderTop: '1px solid var(--border)', background: 'var(--bg-light)', flexShrink: 0 }}>
+            <h3 style={{ fontSize: '1rem', fontWeight: '600', marginBottom: '0.75rem' }}>Actions</h3>
             <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
               {photo.latitude && photo.longitude && onCreateLocation && (
                 <button onClick={handleOpenCreateLocation} style={{ width: '100%' }}>

@@ -1161,8 +1161,6 @@ button.small {
 .photo-detail-sidebar {
   width: 400px;
   border-left: 1px solid var(--border);
-  overflow-y: auto;
-  padding: 1.5rem;
 }
 
 .detail-section {
