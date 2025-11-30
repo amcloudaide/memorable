@@ -9,6 +9,16 @@ function PhotoDetail({ photo, collections, onClose, onUpdate, onDelete, onAddToC
   const [newMetadataKey, setNewMetadataKey] = useState('');
   const [newMetadataValue, setNewMetadataValue] = useState('');
 
+  // Collections dropdown state
+  const [showCollectionsDropdown, setShowCollectionsDropdown] = useState(false);
+  const [collectionsSearch, setCollectionsSearch] = useState('');
+
+  // Locations dropdown state
+  const [locations, setLocations] = useState([]);
+  const [photoLocation, setPhotoLocation] = useState(null);
+  const [showLocationsDropdown, setShowLocationsDropdown] = useState(false);
+  const [locationsSearch, setLocationsSearch] = useState('');
+
   // Location lookup state
   const [showLocationPicker, setShowLocationPicker] = useState(false);
   const [locationLoading, setLocationLoading] = useState(false);
@@ -33,6 +43,8 @@ function PhotoDetail({ photo, collections, onClose, onUpdate, onDelete, onAddToC
     loadPhotoData();
     loadPhotoCollections();
     loadCustomMetadata();
+    loadLocations();
+    loadPhotoLocation();
   }, [photo.id]);
 
   const loadPhotoData = async () => {
@@ -62,6 +74,21 @@ function PhotoDetail({ photo, collections, onClose, onUpdate, onDelete, onAddToC
   const loadCustomMetadata = async () => {
     const metadata = await window.electron.getCustomMetadata(photo.id);
     setCustomMetadata(metadata);
+  };
+
+  const loadLocations = async () => {
+    const locs = await window.electron.getLocations();
+    setLocations(locs);
+  };
+
+  const loadPhotoLocation = async () => {
+    // Check if photo has a location_id set
+    if (photo.location_id) {
+      const loc = await window.electron.getLocation(photo.location_id);
+      setPhotoLocation(loc);
+    } else {
+      setPhotoLocation(null);
+    }
   };
 
   const handleInputChange = (e) => {
@@ -96,6 +123,27 @@ function PhotoDetail({ photo, collections, onClose, onUpdate, onDelete, onAddToC
       setNewMetadataValue('');
       await loadCustomMetadata();
     }
+  };
+
+  const handleAssignLocation = async (locationId) => {
+    const location = locations.find(loc => loc.id === locationId);
+    if (location) {
+      await window.electron.updatePhotosLocation([photo.id], {
+        location_id: location.id,
+        location_name: location.name
+      });
+      await loadPhotoLocation();
+      setShowLocationsDropdown(false);
+      setLocationsSearch('');
+    }
+  };
+
+  const handleRemoveLocation = async () => {
+    await window.electron.updatePhotosLocation([photo.id], {
+      location_id: null,
+      location_name: null
+    });
+    await loadPhotoLocation();
   };
 
   const handleWriteToExif = async () => {
@@ -562,24 +610,195 @@ function PhotoDetail({ photo, collections, onClose, onUpdate, onDelete, onAddToC
           </div>
 
           <div className="detail-section">
-            <h3>Collections</h3>
-            <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
-              {collections.map(collection => {
-                const isInCollection = photoCollections.some(c => c.id === collection.id);
-                return (
-                  <label key={collection.id} style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-                    <input
-                      type="checkbox"
-                      checked={isInCollection}
-                      onChange={() => handleToggleCollection(collection.id)}
-                    />
-                    <span>{collection.name}</span>
-                  </label>
-                );
-              })}
-              {collections.length === 0 && (
-                <div className="metadata-value">No collections yet</div>
-              )}
+            <h3>Collections & Locations</h3>
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem' }}>
+              {/* Collections Dropdown */}
+              <div>
+                <label className="metadata-label" style={{ display: 'block', marginBottom: '0.5rem' }}>Collections</label>
+                <div style={{ position: 'relative' }}>
+                  <button
+                    className="secondary small"
+                    onClick={() => {
+                      setShowCollectionsDropdown(!showCollectionsDropdown);
+                      setShowLocationsDropdown(false);
+                    }}
+                    style={{ width: '100%', textAlign: 'left' }}
+                  >
+                    {photoCollections.length > 0 ? `${photoCollections.length} selected` : 'Add to collection...'}
+                  </button>
+                  {showCollectionsDropdown && (
+                    <div style={{
+                      position: 'absolute',
+                      top: '100%',
+                      left: 0,
+                      right: 0,
+                      marginTop: '0.25rem',
+                      background: 'white',
+                      border: '1px solid var(--border)',
+                      borderRadius: '0.375rem',
+                      boxShadow: '0 4px 6px rgba(0, 0, 0, 0.1)',
+                      zIndex: 100,
+                      maxHeight: '200px',
+                      overflow: 'hidden',
+                      display: 'flex',
+                      flexDirection: 'column'
+                    }}>
+                      <input
+                        type="text"
+                        placeholder="Search collections..."
+                        value={collectionsSearch}
+                        onChange={(e) => setCollectionsSearch(e.target.value)}
+                        style={{ margin: '0.5rem', width: 'calc(100% - 1rem)', fontSize: '0.75rem' }}
+                        onClick={(e) => e.stopPropagation()}
+                      />
+                      <div style={{ overflowY: 'auto', flex: 1 }}>
+                        {collections
+                          .filter(col => col.name.toLowerCase().includes(collectionsSearch.toLowerCase()))
+                          .map(collection => {
+                            const isInCollection = photoCollections.some(c => c.id === collection.id);
+                            return (
+                              <div
+                                key={collection.id}
+                                onClick={() => handleToggleCollection(collection.id)}
+                                style={{
+                                  padding: '0.5rem 0.75rem',
+                                  cursor: 'pointer',
+                                  fontSize: '0.75rem',
+                                  background: isInCollection ? 'var(--bg-light)' : 'white',
+                                  display: 'flex',
+                                  alignItems: 'center',
+                                  gap: '0.5rem'
+                                }}
+                              >
+                                <input
+                                  type="checkbox"
+                                  checked={isInCollection}
+                                  readOnly
+                                  style={{ pointerEvents: 'none' }}
+                                />
+                                <span>{collection.name}</span>
+                              </div>
+                            );
+                          })}
+                        {collections.filter(col => col.name.toLowerCase().includes(collectionsSearch.toLowerCase())).length === 0 && (
+                          <div style={{ padding: '0.75rem', fontSize: '0.75rem', color: 'var(--text-light)', textAlign: 'center' }}>
+                            No collections found
+                          </div>
+                        )}
+                      </div>
+                    </div>
+                  )}
+                </div>
+                {/* Show selected collections */}
+                {photoCollections.length > 0 && (
+                  <div style={{ marginTop: '0.5rem', display: 'flex', flexWrap: 'wrap', gap: '0.25rem' }}>
+                    {photoCollections.map(col => (
+                      <span key={col.id} style={{
+                        fontSize: '0.7rem',
+                        padding: '0.125rem 0.375rem',
+                        background: 'var(--primary)',
+                        color: 'white',
+                        borderRadius: '0.25rem'
+                      }}>
+                        {col.name}
+                      </span>
+                    ))}
+                  </div>
+                )}
+              </div>
+
+              {/* Locations Dropdown */}
+              <div>
+                <label className="metadata-label" style={{ display: 'block', marginBottom: '0.5rem' }}>Location</label>
+                <div style={{ position: 'relative' }}>
+                  <button
+                    className="secondary small"
+                    onClick={() => {
+                      setShowLocationsDropdown(!showLocationsDropdown);
+                      setShowCollectionsDropdown(false);
+                    }}
+                    style={{ width: '100%', textAlign: 'left' }}
+                  >
+                    {photoLocation ? photoLocation.name : 'Assign to location...'}
+                  </button>
+                  {showLocationsDropdown && (
+                    <div style={{
+                      position: 'absolute',
+                      top: '100%',
+                      left: 0,
+                      right: 0,
+                      marginTop: '0.25rem',
+                      background: 'white',
+                      border: '1px solid var(--border)',
+                      borderRadius: '0.375rem',
+                      boxShadow: '0 4px 6px rgba(0, 0, 0, 0.1)',
+                      zIndex: 100,
+                      maxHeight: '200px',
+                      overflow: 'hidden',
+                      display: 'flex',
+                      flexDirection: 'column'
+                    }}>
+                      <input
+                        type="text"
+                        placeholder="Search locations..."
+                        value={locationsSearch}
+                        onChange={(e) => setLocationsSearch(e.target.value)}
+                        style={{ margin: '0.5rem', width: 'calc(100% - 1rem)', fontSize: '0.75rem' }}
+                        onClick={(e) => e.stopPropagation()}
+                      />
+                      <div style={{ overflowY: 'auto', flex: 1 }}>
+                        {locations
+                          .filter(loc => loc.name.toLowerCase().includes(locationsSearch.toLowerCase()))
+                          .map(location => (
+                            <div
+                              key={location.id}
+                              onClick={() => handleAssignLocation(location.id)}
+                              style={{
+                                padding: '0.5rem 0.75rem',
+                                cursor: 'pointer',
+                                fontSize: '0.75rem',
+                                background: photoLocation?.id === location.id ? 'var(--bg-light)' : 'white'
+                              }}
+                            >
+                              {location.name}
+                              {location.category && (
+                                <span style={{ marginLeft: '0.5rem', color: 'var(--text-light)', fontSize: '0.7rem' }}>
+                                  ({location.category})
+                                </span>
+                              )}
+                            </div>
+                          ))}
+                        {locations.filter(loc => loc.name.toLowerCase().includes(locationsSearch.toLowerCase())).length === 0 && (
+                          <div style={{ padding: '0.75rem', fontSize: '0.75rem', color: 'var(--text-light)', textAlign: 'center' }}>
+                            No locations found
+                          </div>
+                        )}
+                      </div>
+                    </div>
+                  )}
+                </div>
+                {/* Show assigned location */}
+                {photoLocation && (
+                  <div style={{ marginTop: '0.5rem', display: 'flex', alignItems: 'center', gap: '0.25rem' }}>
+                    <span style={{
+                      fontSize: '0.7rem',
+                      padding: '0.125rem 0.375rem',
+                      background: 'var(--primary)',
+                      color: 'white',
+                      borderRadius: '0.25rem'
+                    }}>
+                      {photoLocation.name}
+                    </span>
+                    <button
+                      className="small secondary"
+                      onClick={handleRemoveLocation}
+                      style={{ fontSize: '0.65rem', padding: '0.125rem 0.25rem' }}
+                    >
+                      ×
+                    </button>
+                  </div>
+                )}
+              </div>
             </div>
           </div>
 
