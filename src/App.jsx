@@ -7,6 +7,9 @@ import Locations from './components/Locations';
 import LocationDetail from './components/LocationDetail';
 import LocationsMapView from './components/LocationsMapView';
 import WordPressSettings from './components/WordPressSettings';
+import InstagramSettings from './components/InstagramSettings';
+import kDriveSettings from './components/kDriveSettings';
+import kDriveImport from './components/kDriveImport';
 
 function App() {
   const [photos, setPhotos] = useState([]);
@@ -18,6 +21,9 @@ function App() {
   const [selectedCollection, setSelectedCollection] = useState(null);
   const [loading, setLoading] = useState(true);
   const [showWpSettings, setShowWpSettings] = useState(false);
+  const [showIgSettings, setShowIgSettings] = useState(false);
+  const [showKDriveSettings, setShowKDriveSettings] = useState(false);
+  const [showKDriveImport, setShowKDriveImport] = useState(false);
 
   useEffect(() => {
     loadPhotos();
@@ -204,7 +210,10 @@ function App() {
         <h1>Memorable</h1>
         <div className="flex gap-2">
           <button className="secondary" onClick={() => setShowWpSettings(true)}>WordPress</button>
-          <button onClick={handleImportPhotos}>Import Photos</button>
+          <button className="secondary" onClick={() => setShowIgSettings(true)}>Instagram</button>
+          <button className="secondary" onClick={() => setShowKDriveSettings(true)}>kDrive Settings</button>
+          <button onClick={() => setShowKDriveImport(true)}>Import from kDrive</button>
+          <button onClick={handleImportPhotos}>Import Local Photos</button>
         </div>
       </header>
 
@@ -291,6 +300,23 @@ function App() {
 
       {showWpSettings && (
         <WordPressSettings onClose={() => setShowWpSettings(false)} />
+      )}
+
+      {showIgSettings && (
+        <InstagramSettings onClose={() => setShowIgSettings(false)} />
+      )}
+
+      {showKDriveSettings && (
+        <kDriveSettings onClose={() => setShowKDriveSettings(false)} />
+      )}
+
+      {showKDriveImport && (
+        <kDriveImport
+          onClose={() => setShowKDriveImport(false)}
+          onImportComplete={() => {
+            loadPhotos();
+          }}
+        />
       )}
 
       {selectedLocation && (

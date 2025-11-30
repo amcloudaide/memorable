@@ -1035,3 +1035,328 @@ ${nestedImages}
     return { success: false, error: error.message };
   }
 });
+
+// ==================== Instagram Integration ====================
+
+let igSettings = null;
+
+function igSettingsPath() {
+  return path.join(app.getPath('userData'), 'instagram-settings.json');
+}
+
+function loadIgSettings() {
+  try {
+    const data = fsSync.readFileSync(igSettingsPath(), 'utf8');
+    igSettings = JSON.parse(data);
+  } catch (error) {
+    igSettings = null;
+  }
+}
+
+// Save Instagram settings
+ipcMain.handle('ig-save-settings', async (event, settings) => {
+  try {
+    igSettings = settings;
+    fsSync.writeFileSync(igSettingsPath(), JSON.stringify(settings, null, 2));
+    return { success: true };
+  } catch (error) {
+    return { success: false, error: error.message };
+  }
+});
+
+// Get Instagram settings
+ipcMain.handle('ig-get-settings', async () => {
+  if (!igSettings) loadIgSettings();
+  return igSettings || { accessToken: '', instagramUserId: '' };
+});
+
+// Helper function for Instagram API requests
+async function igApiRequest(endpoint, method = 'GET', body = null) {
+  if (!igSettings) loadIgSettings();
+  if (!igSettings || !igSettings.accessToken || !igSettings.instagramUserId) {
+    throw new Error('Instagram settings not configured');
+  }
+
+  const baseUrl = 'https://graph.facebook.com/v18.0';
+  let url = `${baseUrl}${endpoint}`;
+
+  // Add access token to URL
+  const separator = url.includes('?') ? '&' : '?';
+  url += `${separator}access_token=${igSettings.accessToken}`;
+
+  return new Promise((resolve, reject) => {
+    const request = net.request({
+      method,
+      url,
+    });
+
+    if (body && method !== 'GET') {
+      request.setHeader('Content-Type', 'application/json');
+    }
+
+    let responseData = Buffer.alloc(0);
+
+    request.on('response', (response) => {
+      response.on('data', (chunk) => {
+        responseData = Buffer.concat([responseData, chunk]);
+      });
+      response.on('end', () => {
+        try {
+          const jsonData = JSON.parse(responseData.toString());
+          if (response.statusCode >= 200 && response.statusCode < 300) {
+            resolve(jsonData);
+          } else {
+            reject(new Error(jsonData.error?.message || `HTTP ${response.statusCode}`));
+          }
+        } catch (e) {
+          reject(new Error(`Failed to parse response: ${responseData.toString()}`));
+        }
+      });
+    });
+
+    request.on('error', (error) => {
+      reject(error);
+    });
+
+    if (body && method !== 'GET') {
+      request.write(JSON.stringify(body));
+    }
+
+    request.end();
+  });
+}
+
+// Test Instagram connection
+ipcMain.handle('ig-test-connection', async () => {
+  try {
+    const result = await igApiRequest(`/${igSettings.instagramUserId}?fields=id,username`);
+    return { success: true, username: result.username };
+  } catch (error) {
+    return { success: false, error: error.message };
+  }
+});
+
+// Temporary HTTP server for serving local images to Instagram
+const http = require('http');
+let tempImageServer = null;
+let serverPort = 8765;
+
+function startTempImageServer(imagePath) {
+  return new Promise((resolve, reject) => {
+    const imageData = fsSync.readFileSync(imagePath);
+    const mimeType = imagePath.toLowerCase().endsWith('.png') ? 'image/png' : 'image/jpeg';
+    const fileName = path.basename(imagePath);
+
+    tempImageServer = http.createServer((req, res) => {
+      if (req.url === `/${fileName}`) {
+        res.writeHead(200, {
+          'Content-Type': mimeType,
+          'Content-Length': imageData.length,
+          'Access-Control-Allow-Origin': '*'
+        });
+        res.end(imageData);
+      } else {
+        res.writeHead(404);
+        res.end('Not found');
+      }
+    });
+
+    tempImageServer.listen(serverPort, () => {
+      const imageUrl = `http://localhost:${serverPort}/${fileName}`;
+      resolve(imageUrl);
+    });
+
+    tempImageServer.on('error', (err) => {
+      reject(err);
+    });
+  });
+}
+
+function stopTempImageServer() {
+  return new Promise((resolve) => {
+    if (tempImageServer) {
+      tempImageServer.close(() => {
+        tempImageServer = null;
+        resolve();
+      });
+    } else {
+      resolve();
+    }
+  });
+}
+
+// Publish photo to Instagram
+ipcMain.handle('ig-publish-photo', async (event, photoData) => {
+  try {
+    if (!igSettings) loadIgSettings();
+    if (!igSettings) throw new Error('Instagram settings not configured');
+
+    const { filePath, caption, altText } = photoData;
+
+    // Start temporary HTTP server to serve the image
+    console.log('Starting temporary image server...');
+    const imageUrl = await startTempImageServer(filePath);
+    console.log('Image accessible at:', imageUrl);
+
+    // Build request body
+    const mediaBody = {
+      image_url: imageUrl,
+      caption: caption
+    };
+
+    if (altText) {
+      mediaBody.accessibility_caption = altText;
+    }
+
+    // Step 1: Create a media container
+    console.log('Creating media container...');
+    const container = await igApiRequest(
+      `/${igSettings.instagramUserId}/media?image_url=${encodeURIComponent(imageUrl)}&caption=${encodeURIComponent(caption)}`,
+      'POST'
+    );
+    console.log('Container created:', container.id);
+
+    // Wait a moment for Instagram to download the image
+    await new Promise(resolve => setTimeout(resolve, 3000));
+
+    // Step 2: Publish the container
+    console.log('Publishing media container...');
+    const result = await igApiRequest(
+      `/${igSettings.instagramUserId}/media_publish?creation_id=${container.id}`,
+      'POST'
+    );
+    console.log('Published successfully:', result.id);
+
+    // Stop the temporary server
+    await stopTempImageServer();
+    console.log('Temporary server stopped');
+
+    return { success: true, postId: result.id };
+
+  } catch (error) {
+    // Make sure to stop the server even if there's an error
+    await stopTempImageServer();
+    console.error('Instagram publish error:', error);
+    return { success: false, error: error.message };
+  }
+});
+
+// ==================== kDrive Integration (WebDAV) ====================
+
+const { createClient } = require('webdav');
+let kDriveSettings = null;
+let kDriveClient = null;
+
+function kDriveSettingsPath() {
+  return path.join(app.getPath('userData'), 'kdrive-settings.json');
+}
+
+function loadKDriveSettings() {
+  try {
+    const data = fsSync.readFileSync(kDriveSettingsPath(), 'utf8');
+    kDriveSettings = JSON.parse(data);
+  } catch (error) {
+    kDriveSettings = null;
+  }
+}
+
+function getKDriveClient() {
+  if (!kDriveSettings) loadKDriveSettings();
+  if (!kDriveSettings || !kDriveSettings.driveId || !kDriveSettings.email || !kDriveSettings.password) {
+    throw new Error('kDrive settings not configured');
+  }
+
+  if (!kDriveClient) {
+    const webdavUrl = `https://${kDriveSettings.driveId}.connect.kdrive.infomaniak.com`;
+    kDriveClient = createClient(webdavUrl, {
+      username: kDriveSettings.email,
+      password: kDriveSettings.password
+    });
+  }
+
+  return kDriveClient;
+}
+
+// Save kDrive settings
+ipcMain.handle('kdrive-save-settings', async (event, settings) => {
+  try {
+    kDriveSettings = settings;
+    kDriveClient = null; // Reset client to use new settings
+    fsSync.writeFileSync(kDriveSettingsPath(), JSON.stringify(settings, null, 2));
+    return { success: true };
+  } catch (error) {
+    return { success: false, error: error.message };
+  }
+});
+
+// Get kDrive settings
+ipcMain.handle('kdrive-get-settings', async () => {
+  if (!kDriveSettings) loadKDriveSettings();
+  return kDriveSettings || { driveId: '', email: '', password: '' };
+});
+
+// Test kDrive connection
+ipcMain.handle('kdrive-test-connection', async () => {
+  try {
+    const client = getKDriveClient();
+    const contents = await client.getDirectoryContents('/');
+    return { success: true, fileCount: contents.length };
+  } catch (error) {
+    return { success: false, error: error.message };
+  }
+});
+
+// List directory contents
+ipcMain.handle('kdrive-list-directory', async (event, dirPath) => {
+  try {
+    const client = getKDriveClient();
+    const contents = await client.getDirectoryContents(dirPath);
+
+    // Format the results to be more user-friendly
+    const items = contents.map(item => ({
+      filename: item.filename,
+      basename: item.basename,
+      type: item.type,
+      size: item.size,
+      lastmod: item.lastmod
+    }));
+
+    return { success: true, items };
+  } catch (error) {
+    console.error('kDrive list directory error:', error);
+    return { success: false, error: error.message, items: [] };
+  }
+});
+
+// Import photo from kDrive
+ipcMain.handle('kdrive-import-photo', async (event, filepath) => {
+  try {
+    const client = getKDriveClient();
+
+    // Download the file to a temporary location
+    const tempDir = app.getPath('temp');
+    const fileName = path.basename(filepath);
+    const tempFilePath = path.join(tempDir, `kdrive_${Date.now()}_${fileName}`);
+
+    console.log('Downloading from kDrive:', filepath);
+    const fileBuffer = await client.getFileContents(filepath);
+    fsSync.writeFileSync(tempFilePath, fileBuffer);
+
+    console.log('Saved to temp:', tempFilePath);
+
+    // Now import this file using the existing photo import logic
+    const photoData = await importPhoto(tempFilePath);
+
+    // Clean up temp file
+    try {
+      fsSync.unlinkSync(tempFilePath);
+    } catch (e) {
+      console.error('Failed to delete temp file:', e);
+    }
+
+    return { success: true, photo: photoData };
+  } catch (error) {
+    console.error('kDrive import error:', error);
+    return { success: false, error: error.message };
+  }
+});

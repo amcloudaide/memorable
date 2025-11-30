@@ -55,5 +55,18 @@ contextBridge.exposeInMainWorld('electron', {
   wpGetTags: () => ipcRenderer.invoke('wp-get-tags'),
   wpCreateTag: (name) => ipcRenderer.invoke('wp-create-tag', name),
   wpUploadMedia: (filePath, description) => ipcRenderer.invoke('wp-upload-media', filePath, description),
-  wpCreatePost: (postData) => ipcRenderer.invoke('wp-create-post', postData)
+  wpCreatePost: (postData) => ipcRenderer.invoke('wp-create-post', postData),
+
+  // Instagram operations
+  igSaveSettings: (settings) => ipcRenderer.invoke('ig-save-settings', settings),
+  igGetSettings: () => ipcRenderer.invoke('ig-get-settings'),
+  igTestConnection: () => ipcRenderer.invoke('ig-test-connection'),
+  igPublishPhoto: (photoData) => ipcRenderer.invoke('ig-publish-photo', photoData),
+
+  // kDrive operations
+  kDriveSaveSettings: (settings) => ipcRenderer.invoke('kdrive-save-settings', settings),
+  kDriveGetSettings: () => ipcRenderer.invoke('kdrive-get-settings'),
+  kDriveTestConnection: () => ipcRenderer.invoke('kdrive-test-connection'),
+  kDriveListDirectory: (path) => ipcRenderer.invoke('kdrive-list-directory', path),
+  kDriveImportPhoto: (filepath) => ipcRenderer.invoke('kdrive-import-photo', filepath)
 });
